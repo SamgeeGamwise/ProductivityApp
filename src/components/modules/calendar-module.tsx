@@ -552,18 +552,6 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
       {error && <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</p>}
 
-      {dashboardWeather && (
-        <div className="mb-3 flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs text-white/80">
-          <p className="text-[0.7rem] uppercase tracking-[0.3em] text-white/60">Today's weather</p>
-          <p className="text-sm font-semibold text-white">
-            {dashboardWeather.max}°F / {dashboardWeather.min}°F
-          </p>
-          {typeof dashboardWeather.precipitation === "number" && dashboardWeather.precipitation > 0 && (
-            <p className="text-white/70">{dashboardWeather.precipitation}% chance of rain</p>
-          )}
-        </div>
-      )}
-
       <EventList
         events={visibleEvents}
         isLoading={isLoading}
