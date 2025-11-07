@@ -25,16 +25,33 @@ export async function GET(request: NextRequest) {
   }
 }
 
+type RecurrencePayload = {
+  frequency: "daily" | "weekly" | "monthly";
+  interval?: number;
+} | null;
+
+function buildRecurrenceRule(recurrence: RecurrencePayload) {
+  if (!recurrence) return null;
+  const freq = recurrence.frequency?.toUpperCase();
+  if (!freq || !["DAILY", "WEEKLY", "MONTHLY"].includes(freq)) {
+    return null;
+  }
+  const interval = Math.max(1, Number(recurrence.interval) || 1);
+  return `RRULE:FREQ=${freq};INTERVAL=${interval}`;
+}
+
 export async function POST(request: NextRequest) {
   if (!calendarIsConfigured()) {
     return NextResponse.json({ error: "Calendar credentials missing", needsSetup: true }, { status: 400 });
   }
 
-  const { summary, description, start, end } = await request.json();
+  const { summary, description, start, end, recurrence } = await request.json();
 
   if (!summary || !start || !end) {
     return NextResponse.json({ error: "summary, start, and end are required" }, { status: 400 });
   }
+
+  const recurrenceRule = buildRecurrenceRule(recurrence);
 
   try {
     const event = await createEvent({
@@ -42,6 +59,7 @@ export async function POST(request: NextRequest) {
       description,
       start: parseDateTime(start),
       end: parseDateTime(end),
+      recurrenceRule,
     });
 
     return NextResponse.json({ event });
@@ -60,11 +78,13 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Calendar credentials missing", needsSetup: true }, { status: 400 });
   }
 
-  const { id, summary, description, start, end } = await request.json();
+  const { id, summary, description, start, end, recurrence } = await request.json();
 
   if (!id || !summary || !start || !end) {
     return NextResponse.json({ error: "id, summary, start, and end are required" }, { status: 400 });
   }
+
+  const recurrenceRule = buildRecurrenceRule(recurrence);
 
   try {
     const event = await updateEvent({
@@ -73,6 +93,7 @@ export async function PUT(request: NextRequest) {
       description,
       start: parseDateTime(start),
       end: parseDateTime(end),
+      recurrenceRule,
     });
     return NextResponse.json({ event });
   } catch (error) {

@@ -6,11 +6,17 @@ type ListEventsParams = {
   maxResults?: number;
 };
 
+type RecurrenceRule = {
+  frequency: "DAILY" | "WEEKLY" | "MONTHLY";
+  interval?: number;
+};
+
 type CreateEventInput = {
   summary: string;
   description?: string;
   start: string;
   end: string;
+  recurrenceRule?: string | null;
 };
 
 type UpdateEventInput = CreateEventInput & { id: string };
@@ -69,6 +75,7 @@ export async function createEvent(input: CreateEventInput) {
       description: input.description,
       start: { dateTime: input.start },
       end: { dateTime: input.end },
+      recurrence: input.recurrenceRule ? [input.recurrenceRule] : undefined,
     },
   });
 
@@ -85,6 +92,7 @@ export async function updateEvent(input: UpdateEventInput) {
       description: input.description,
       start: { dateTime: input.start },
       end: { dateTime: input.end },
+      recurrence: input.recurrenceRule ? [input.recurrenceRule] : null,
     },
   });
 
