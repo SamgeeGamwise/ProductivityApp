@@ -28,6 +28,7 @@ type CalendarEvent = {
   start?: { date?: string | null; dateTime?: string | null }; 
   end?: { date?: string | null; dateTime?: string | null };
   recurrence?: string[] | null;
+  recurringEventId?: string | null;
 };
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly";
@@ -321,7 +322,16 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     const end = getEventDate(event.end) ?? new Date(start.getTime() + 30 * 60 * 1000);
     const recurrence = parseRecurrenceRule(event.recurrence?.[0]);
     const isAllDayEvent = Boolean(event.start?.date && !event.start?.dateTime);
-    setEditingId(event.id);
+    let targetId = event.id;
+    if (event.recurringEventId && typeof window !== "undefined") {
+      const editSeries = window.confirm(
+        "Edit entire series? Select OK for the entire series, Cancel for just this event."
+      );
+      if (editSeries) {
+        targetId = event.recurringEventId;
+      }
+    }
+    setEditingId(targetId);
     setNewEvent({
       summary: event.summary ?? "",
       description: event.description ?? "",
@@ -336,21 +346,33 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     setIsComposerModalOpen(true);
   };
 
-  const handleDelete = async (id: string | undefined) => {
-    if (!id) return;
+  const handleDelete = async (event: CalendarEvent) => {
+    const baseId = event.id;
+    if (!baseId) return;
+    let targetId = baseId;
+    if (event.recurringEventId && typeof window !== "undefined") {
+      const deleteSeries = window.confirm(
+        "Delete entire series? Click OK for entire series, Cancel for just this event."
+      );
+      if (deleteSeries) {
+        targetId = event.recurringEventId;
+      }
+    }
     if (typeof window !== "undefined") {
-      const confirmed = window.confirm("Delete this event?");
+      const confirmed = window.confirm(
+        `Delete ${targetId === event.recurringEventId ? "the entire series" : "this event"}?`
+      );
       if (!confirmed) return;
     }
     try {
       const response = await fetch("/api/calendar/events", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id: targetId }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to delete event");
-      if (editingId === id) {
+      if (editingId === targetId) {
         resetForm();
       }
       await loadEvents();
@@ -802,7 +824,7 @@ function EventList({
   currentMonthStart?: Date;
   weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
-  onDelete: (id: string | undefined) => void;
+  onDelete: (event: CalendarEvent) => void;
   editingId: string | null;
 }) {
   if (isLoading && !events.length) {
@@ -866,12 +888,12 @@ function EventList({
                   >
                     {editingId === event.id ? "Editing…" : "Edit"}
                   </button>
-                  <button
-                    type="button"
-                    className="text-red-300 hover:text-red-200"
-                    onClick={() => onDelete(event.id)}
-                    disabled={!event.id}
-                  >
+                <button
+                  type="button"
+                  className="text-red-300 hover:text-red-200"
+                  onClick={() => onDelete(event)}
+                  disabled={!event.id}
+                >
                     Delete
                   </button>
                 </div>
@@ -899,7 +921,7 @@ function CalendarWeekGrid({
   range: { start: Date; end: Date };
   weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
-  onDelete: (id: string | undefined) => void;
+  onDelete: (event: CalendarEvent) => void;
   editingId: string | null;
 }) {
   const days = eachDayOfInterval({ start: range.start, end: range.end });
@@ -949,12 +971,12 @@ function CalendarWeekGrid({
                             >
                               {editingId === event.id ? "Editing…" : "Edit"}
                             </button>
-                            <button
-                              type="button"
-                              className="text-red-200 hover:text-red-100"
-                              onClick={() => onDelete(event.id)}
-                              disabled={!event.id}
-                            >
+                        <button
+                          type="button"
+                          className="text-red-200 hover:text-red-100"
+                          onClick={() => onDelete(event)}
+                          disabled={!event.id}
+                        >
                               Delete
                             </button>
                           </div>
@@ -998,7 +1020,7 @@ function CalendarMonthGrid({
   currentMonthStart: Date;
   weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
-  onDelete: (id: string | undefined) => void;
+  onDelete: (event: CalendarEvent) => void;
   editingId: string | null;
 }) {
   const days = eachDayOfInterval({ start: range.start, end: range.end });

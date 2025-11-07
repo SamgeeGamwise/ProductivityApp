@@ -4,15 +4,6 @@ import Link from "next/link";
 import { useUiSettings } from "@/context/ui-settings";
 import { useState } from "react";
 
-const SCALE_OPTIONS = [
-  { value: 1, label: "Comfort" },
-  { value: 1.1, label: "Cozy" },
-  { value: 1.2, label: "Roomy" },
-  { value: 1.3, label: "Relaxed" },
-  { value: 1.45, label: "Large" },
-  { value: 1.6, label: "Max" },
-];
-
 export default function SettingsPage() {
   const { uiScale, setUiScale } = useUiSettings();
   const [gitStatus, setGitStatus] = useState<"idle" | "running" | "success" | "error">("idle");
@@ -64,7 +55,7 @@ export default function SettingsPage() {
               Choose how much breathing room buttons and controls should have. This updates instantly across the app.
             </p>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="mt-6 grid gap-4">
               <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
                 <label htmlFor="ui-scale" className="text-xs uppercase tracking-[0.3em] text-slate-500">
                   Scale
@@ -82,27 +73,6 @@ export default function SettingsPage() {
                 <p className="text-sm text-slate-300">
                   Current size: <span className="font-semibold text-white">{(uiScale * 100).toFixed(0)}%</span>
                 </p>
-              </div>
-
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Quick presets</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {SCALE_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setUiScale(option.value)}
-                      className={`rounded-2xl border px-3 py-2 text-left text-sm font-semibold transition ${
-                        uiScale === option.value
-                          ? "border-sky-400 bg-sky-400/20 text-white"
-                          : "border-white/15 text-slate-200 hover:border-white/40"
-                      }`}
-                    >
-                      <span className="block text-base">{option.label}</span>
-                      <span className="text-xs text-slate-400">{(option.value * 100).toFixed(0)}%</span>
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
           </div>
