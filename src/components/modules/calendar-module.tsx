@@ -377,7 +377,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   return (
     <>
       <ModuleCard
-      title="Google Calendar"
+      title="Calendar"
       accent="from-sky-500/40 to-blue-500/10"
       className={expanded ? "min-h-0 w-full text-[13px]" : "min-h-0 w-full text-[12px]"}
       contentClassName={expanded ? "gap-4" : "gap-3"}
@@ -398,9 +398,9 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
               <button
                 type="button"
                 onClick={onToggleExpand}
-                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-white/60"
+                className="rounded-full border border-white/20 px-6 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-white/60"
               >
-                {expanded ? "Dashboard view" : "Full view"}
+                {expanded ? "Dashboard view" : "Calendar view"}
               </button>
             )}
           </div>
@@ -417,7 +417,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                     }`}
                     onClick={() => setViewMode(mode)}
                   >
-                    {mode === "week" ? "Week grid" : "Month grid"}
+                    {mode === "week" ? "Week" : "Month"}
                   </button>
                 ))}
               </div>
