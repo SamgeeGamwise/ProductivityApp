@@ -13,6 +13,8 @@ type CreateEventInput = {
   end: string;
 };
 
+type UpdateEventInput = CreateEventInput & { id: string };
+
 const calendarId = process.env.GOOGLE_CALENDAR_ID;
 const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
 const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
@@ -71,6 +73,30 @@ export async function createEvent(input: CreateEventInput) {
   });
 
   return response.data;
+}
+
+export async function updateEvent(input: UpdateEventInput) {
+  const calendar = await getCalendar();
+  const response = await calendar.events.patch({
+    calendarId: calendarId!,
+    eventId: input.id,
+    requestBody: {
+      summary: input.summary,
+      description: input.description,
+      start: { dateTime: input.start },
+      end: { dateTime: input.end },
+    },
+  });
+
+  return response.data;
+}
+
+export async function deleteEvent(id: string) {
+  const calendar = await getCalendar();
+  await calendar.events.delete({
+    calendarId: calendarId!,
+    eventId: id,
+  });
 }
 
 export function calendarIsConfigured() {

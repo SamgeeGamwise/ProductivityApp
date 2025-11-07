@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { calendarIsConfigured, createEvent, listEvents } from "@/lib/googleCalendar";
+import { calendarIsConfigured, createEvent, deleteEvent, listEvents, updateEvent } from "@/lib/googleCalendar";
 
 export const runtime = "nodejs";
 
@@ -52,6 +52,57 @@ export async function POST(request: NextRequest) {
       console.error("Google Calendar POST error", error);
     }
     return NextResponse.json({ error: status === 400 ? message : "Failed to create Google Calendar event" }, { status });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  if (!calendarIsConfigured()) {
+    return NextResponse.json({ error: "Calendar credentials missing", needsSetup: true }, { status: 400 });
+  }
+
+  const { id, summary, description, start, end } = await request.json();
+
+  if (!id || !summary || !start || !end) {
+    return NextResponse.json({ error: "id, summary, start, and end are required" }, { status: 400 });
+  }
+
+  try {
+    const event = await updateEvent({
+      id,
+      summary,
+      description,
+      start: parseDateTime(start),
+      end: parseDateTime(end),
+    });
+    return NextResponse.json({ event });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    const status = message.startsWith("Invalid date") ? 400 : 502;
+    if (status === 502) {
+      console.error("Google Calendar PUT error", error);
+    }
+    return NextResponse.json({ error: status === 400 ? message : "Failed to update Google Calendar event" }, { status });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  if (!calendarIsConfigured()) {
+    return NextResponse.json({ error: "Calendar credentials missing", needsSetup: true }, { status: 400 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const id = body?.id;
+
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+
+  try {
+    await deleteEvent(id);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Google Calendar DELETE error", error);
+    return NextResponse.json({ error: "Failed to delete Google Calendar event" }, { status: 502 });
   }
 }
 

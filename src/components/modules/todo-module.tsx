@@ -5,15 +5,8 @@ import { usePersistentList } from "@/hooks/usePersistentList";
 import { ModuleCard } from "../module-card";
 import clsx from "clsx";
 
-const defaultTodos = [
-  { id: "sample-1", label: "Plan tomorrow's top 3 tasks", done: false },
-  { id: "sample-2", label: "Reply to important emails", done: false },
-];
-
-const quickTodos = ["Prep dinner plan", "Laundry reset", "Inbox zero", "Budget check", "Call family", "Device charge"];
-
 export function TodoModule() {
-  const { items, add, toggle, remove } = usePersistentList("todo-items", defaultTodos);
+  const { items, add, toggle, remove } = usePersistentList("todo-items");
   const [text, setText] = useState("");
   const [note, setNote] = useState("");
 
@@ -33,33 +26,11 @@ export function TodoModule() {
       accent="from-emerald-500/30 to-emerald-500/10"
       contentClassName="gap-3"
     >
-      <div className="flex flex-wrap gap-2 text-xs text-white/80">
-        {quickTodos.map((task) => (
-          <button
-            key={task}
-            type="button"
-            onClick={() => add(task)}
-            className="rounded-full border border-emerald-300/40 px-3 py-1 font-semibold hover:border-emerald-200"
-          >
-            {task}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => {
-            setText("");
-            setNote("");
-          }}
-          className="rounded-full border border-white/20 px-3 py-1 font-semibold text-white/70 hover:border-white/50"
-        >
-          Custom…
-        </button>
-      </div>
 
       <form onSubmit={handleSubmit} className="grid gap-2 sm:grid-cols-[2fr_1fr_auto] text-sm">
         <input
           className="rounded-lg border border-emerald-400/40 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-emerald-300"
-          placeholder="Custom task"
+          placeholder="Task"
           value={text}
           onChange={(event) => setText(event.target.value)}
         />
