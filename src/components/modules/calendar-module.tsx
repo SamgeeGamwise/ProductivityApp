@@ -201,6 +201,10 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   const [newEvent, setNewEvent] = useState<NewEventState>(() => createDefaultEvent());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isComposerModalOpen, setIsComposerModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CalendarEvent | null>(null);
+  const [deleteScope, setDeleteScope] = useState<"single" | "future" | "series">("single");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const { daily: weatherDaily } = useWeather(14);
   const weatherByDate = useMemo(() => {
     const map = new Map<string, WeatherDay>();
@@ -346,38 +350,61 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     setIsComposerModalOpen(true);
   };
 
-  const handleDelete = async (event: CalendarEvent) => {
-    const baseId = event.id;
-    if (!baseId) return;
-    let targetId = baseId;
-    if (event.recurringEventId && typeof window !== "undefined") {
-      const deleteSeries = window.confirm(
-        "Delete entire series? Click OK for entire series, Cancel for just this event."
-      );
-      if (deleteSeries) {
-        targetId = event.recurringEventId;
-      }
+  const requestDelete = (event: CalendarEvent) => {
+    setDeleteTarget(event);
+    setDeleteScope("single");
+    setDeleteError(null);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteTarget(null);
+    setDeleteScope("single");
+    setDeleteError(null);
+    setIsDeleting(false);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget?.id) return;
+    const body: Record<string, unknown> = { scope: deleteScope };
+    if (deleteScope === "single") {
+      body.id = deleteTarget.id;
+    } else if (deleteScope === "series") {
+      body.id = deleteTarget.recurringEventId ?? deleteTarget.id;
+    } else {
+      body.recurringEventId = deleteTarget.recurringEventId ?? deleteTarget.id;
+      body.start = deleteTarget.start?.dateTime || deleteTarget.start?.date;
     }
-    if (typeof window !== "undefined") {
-      const confirmed = window.confirm(
-        `Delete ${targetId === event.recurringEventId ? "the entire series" : "this event"}?`
-      );
-      if (!confirmed) return;
+
+    if ((deleteScope === "single" || deleteScope === "series") && !body.id) {
+      setDeleteError("Missing event identifier");
+      return;
     }
+    if (deleteScope === "future" && (!body.recurringEventId || !body.start)) {
+      setDeleteError("Missing recurring event details");
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
     try {
       const response = await fetch("/api/calendar/events", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: targetId }),
+        body: JSON.stringify(body),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to delete event");
-      if (editingId === targetId) {
+      const boundaryDate = deleteScope === "future" ? getEventDate(deleteTarget.start) : null;
+      applyOptimisticDeletion(deleteScope, deleteTarget, boundaryDate);
+      if (deleteTarget && editingId === deleteTarget.id) {
         resetForm();
       }
-      await loadEvents();
+      closeDeleteModal();
+      loadEvents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error");
+      setDeleteError(err instanceof Error ? err.message : "Unexpected error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -462,6 +489,41 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     });
   };
 
+  useEffect(() => {
+    if (!deleteTarget?.recurringEventId && deleteScope !== "single") {
+      setDeleteScope("single");
+    }
+  }, [deleteTarget, deleteScope]);
+
+  const applyOptimisticDeletion = (
+    scope: "single" | "future" | "series",
+    target: CalendarEvent,
+    boundaryDate?: Date | null
+  ) => {
+    setEvents((prev) =>
+      prev.filter((event) => {
+        if (scope === "single") {
+          return event.id !== target.id;
+        }
+        if (scope === "series") {
+          const seriesId = target.recurringEventId;
+          if (!seriesId) return event.id !== target.id;
+          return event.recurringEventId !== seriesId && event.id !== seriesId;
+        }
+        if (scope === "future") {
+          const seriesId = target.recurringEventId;
+          if (!seriesId) return event.id !== target.id;
+          if (event.recurringEventId !== seriesId) return true;
+          if (!boundaryDate) return event.id !== target.id;
+          const eventDate = getEventDate(event.start);
+          if (!eventDate) return true;
+          return eventDate < boundaryDate;
+        }
+        return true;
+      })
+    );
+  };
+
   return (
     <>
       <ModuleCard
@@ -491,6 +553,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 {expanded ? "Dashboard view" : "Calendar view"}
               </button>
             )}
+            <p className="text-sm font-semibold text-white/80">{displayLabel}</p>
           </div>
 
           {expanded && (
@@ -539,10 +602,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
         </div>
       }
     >
-      <div className="mb-4 flex flex-col gap-2 text-sm text-slate-300 md:flex-row md:items-center md:justify-between">
-        <p className="text-base font-semibold text-white">{displayLabel}</p>
-        {isLoading && <span className="text-xs text-slate-400">Refreshing…</span>}
-      </div>
+      {isLoading && <span className="mb-2 text-xs text-slate-400">Refreshing…</span>}
 
       {needsSetup && (
         <p className="mb-4 rounded-lg border border-yellow-400/40 bg-yellow-400/10 p-3 text-xs text-yellow-100">
@@ -552,19 +612,23 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
       {error && <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</p>}
 
-      <EventList
-        events={visibleEvents}
-        isLoading={isLoading}
-        overflow={overflow}
-        expanded={expanded}
-        range={range}
-        viewMode={effectiveViewMode}
-        currentMonthStart={monthRange.monthStart}
-        weatherByDate={weatherByDate}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        editingId={editingId}
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1">
+          <EventList
+            events={visibleEvents}
+            isLoading={isLoading}
+            overflow={overflow}
+            expanded={expanded}
+            range={range}
+            viewMode={effectiveViewMode}
+            currentMonthStart={monthRange.monthStart}
+            weatherByDate={weatherByDate}
+            onEdit={handleEdit}
+            onDelete={requestDelete}
+            editingId={editingId}
+          />
+        </div>
+      </div>
       </ModuleCard>
       {isComposerModalOpen && (
       <div
@@ -783,9 +847,76 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
               </button>
             </div>
           </form>
+      </div>
+    </div>
+    )}
+
+    {deleteTarget && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+        <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-950/90 p-5 text-sm text-white shadow-2xl shadow-black/60">
+          <div className="mb-4">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Delete event</p>
+            <h3 className="text-2xl font-semibold text-white">{deleteTarget.summary || "(untitled)"}</h3>
+            <p className="text-xs text-white/60">
+              {formatEventTime(deleteTarget.start)} – {formatEventTime(deleteTarget.end)}
+            </p>
+          </div>
+          <div className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Apply to</p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                className={`rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
+                  deleteScope === "single" ? "border-red-300 bg-red-300/20 text-white" : "border-white/20 text-white/70 hover:border-white/50"
+                }`}
+                onClick={() => setDeleteScope("single")}
+              >
+                This event
+              </button>
+              <button
+                type="button"
+                disabled={!deleteTarget.recurringEventId}
+                className={`rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
+                  deleteScope === "future" ? "border-red-300 bg-red-300/20 text-white" : "border-white/20 text-white/70 hover:border-white/50"
+                } ${!deleteTarget.recurringEventId ? "cursor-not-allowed opacity-40" : ""}`}
+                onClick={() => deleteTarget.recurringEventId && setDeleteScope("future")}
+              >
+                This & future
+              </button>
+              <button
+                type="button"
+                disabled={!deleteTarget.recurringEventId}
+                className={`rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
+                  deleteScope === "series" ? "border-red-300 bg-red-300/20 text-white" : "border-white/20 text-white/70 hover:border-white/50"
+                } ${!deleteTarget.recurringEventId ? "cursor-not-allowed opacity-40" : ""}`}
+                onClick={() => deleteTarget.recurringEventId && setDeleteScope("series")}
+              >
+                Entire series
+              </button>
+            </div>
+          </div>
+          {deleteError && <p className="mt-3 text-xs text-red-300">{deleteError}</p>}
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={closeDeleteModal}
+              className="w-full rounded-2xl border border-white/20 px-4 py-2 text-sm font-semibold text-white/80 transition hover:border-white/50"
+              disabled={isDeleting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmDelete}
+              className="w-full rounded-2xl bg-red-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-400 disabled:opacity-60"
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting…" : "Delete"}
+            </button>
+          </div>
         </div>
       </div>
-      )}
+    )}
     </>
   );
 }
@@ -913,6 +1044,7 @@ function CalendarWeekGrid({
   editingId: string | null;
 }) {
   const days = eachDayOfInterval({ start: range.start, end: range.end });
+  const weekHasWeather = days.some((day) => Boolean(getWeatherForDate(weatherByDate, day)));
 
   return (
     <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-white/5 bg-slate-900/60 p-2.5">
@@ -930,12 +1062,21 @@ function CalendarWeekGrid({
                 return first - second;
               });
             const weather = getWeatherForDate(weatherByDate, day);
+            const isTodayCell = isToday(day);
 
             return (
-              <div key={day.toISOString()} className="flex min-h-0 flex-col rounded-xl border border-white/5 bg-slate-950/50 p-1.5">
-                <div className="flex items-baseline justify-between border-b border-white/5 pb-0.5">
+              <div
+                key={day.toISOString()}
+                className={`flex min-h-0 flex-col rounded-xl border p-1.5 transition border-white/5 bg-slate-950/50`}
+              >
+                <div className="flex items-center justify-between border-b border-white/5 pb-0.5">
                   <p className="text-sm font-semibold text-white">{format(day, "EEE")}</p>
-                  <p className="text-xs text-slate-400">{format(day, "MMM d")}</p>
+                  <div className="flex items-center gap-1 text-xs text-slate-400">
+                    <span>{format(day, "MMM d")}</span>
+                    {isTodayCell && (
+                      <span className="rounded-full bg-sky-500/30 px-2 py-[1px] text-[0.65rem] text-sky-50">Today</span>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-1.5 flex-1 space-y-1.5 overflow-hidden">
                   {dayEvents.length ? (
@@ -974,16 +1115,20 @@ function CalendarWeekGrid({
                   ) : (
                     <p className="text-xs text-slate-500">— Free —</p>
                   )}
-                  {weather && (
-                    <div className="mt-1 text-[0.7rem] text-white/70">
-                      <p>
-                        {weather.max}°F / {weather.min}°F
-                      </p>
-                      {typeof weather.precipitation === "number" && weather.precipitation > 0 && (
-                        <p>{weather.precipitation}% rain</p>
-                      )}
-                    </div>
-                  )}
+                  <div className="mt-1 min-h-[32px] text-[0.7rem] text-white/70">
+                    {weather ? (
+                      <>
+                        <p>
+                          {weather.max}°F / {weather.min}°F
+                        </p>
+                        {typeof weather.precipitation === "number" && weather.precipitation > 0 && (
+                          <p>{weather.precipitation}% rain</p>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-transparent">placeholder</span>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -1018,6 +1163,10 @@ function CalendarMonthGrid({
     weeks.push(days.slice(index, index + 7));
   }
 
+  const monthHasWeather = weeks.some((week) =>
+    week.some((day) => Boolean(getWeatherForDate(weatherByDate, day)))
+  );
+
   return (
     <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-white/5 bg-slate-900/60 p-2.5">
       <div className="grid grid-cols-7 gap-1.5 text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -1041,7 +1190,7 @@ function CalendarMonthGrid({
                   const second = getEventDate(b.start)?.getTime() ?? 0;
                   return first - second;
                 });
-              const preview = dayEvents.slice(0, 3);
+              const preview = dayEvents.slice(0, 2);
               const remaining = dayEvents.length - preview.length;
               const inCurrentMonth = isSameMonth(day, currentMonthStart);
               const today = isToday(day);
@@ -1050,7 +1199,7 @@ function CalendarMonthGrid({
               return (
                 <div
                   key={day.toISOString()}
-                  className={`flex min-h-[95px] flex-col rounded-xl border p-1.5 ${
+                  className={`flex h-[115px] flex-col rounded-xl border p-1 overflow-hidden ${
                     today
                       ? "border-sky-400/70 bg-slate-950/70"
                       : "border-white/5 bg-slate-950/40"
@@ -1062,8 +1211,8 @@ function CalendarMonthGrid({
                       <span className="rounded-full bg-sky-500/30 px-1.5 py-0.5 text-[0.6rem] text-sky-50">Today</span>
                     )}
                   </div>
-                  {weather && (
-                    <div className="mt-1 text-[0.65rem] text-white/70">
+                  {weather ? (
+                    <div className="mt-1 text-[0.6rem] text-white/70">
                       <p>
                         {weather.max}°F / {weather.min}°F
                       </p>
@@ -1071,7 +1220,11 @@ function CalendarMonthGrid({
                         <p>{weather.precipitation}% rain</p>
                       )}
                     </div>
-                  )}
+                  ) : monthHasWeather ? (
+                    <div className="mt-1 text-[0.6rem] text-white/70">
+                      <span className="text-transparent">placeholder</span>
+                    </div>
+                  ) : null}
                   <div className="mt-1 flex-1 space-y-1 overflow-hidden">
                     {preview.length ? (
                       preview.map((event) => {
@@ -1079,7 +1232,7 @@ function CalendarMonthGrid({
                         return (
                           <div
                             key={event.id}
-                            className="space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-1.5 text-xs text-white/90"
+                            className="space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-1 text-[0.58rem] text-white/90"
                           >
                             <p className="font-semibold">{event.summary || "(untitled)"}</p>
                             <p className="text-[0.6rem] uppercase tracking-wide text-slate-200">
@@ -1094,7 +1247,7 @@ function CalendarMonthGrid({
                     )}
                   </div>
                   {remaining > 0 && (
-                    <p className="pt-1 text-[0.6rem] uppercase tracking-[0.3em] text-slate-500">+{remaining} more</p>
+                    <p className="pt-1 text-[0.55rem] uppercase tracking-[0.3em] text-slate-500">+{remaining} more</p>
                   )}
                 </div>
               );
@@ -1116,6 +1269,9 @@ function formatEventTime(value?: { date?: string | null; dateTime?: string | nul
 function getEventDate(value?: { date?: string | null; dateTime?: string | null }) {
   const iso = value?.dateTime || value?.date;
   if (!iso) return null;
+  if (value?.date && !value?.dateTime) {
+    return new Date(`${value.date}T12:00:00`);
+  }
   return new Date(iso);
 }
 

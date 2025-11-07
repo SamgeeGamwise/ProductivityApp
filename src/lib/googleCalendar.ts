@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { format as formatDate } from "date-fns";
 
 type ListEventsParams = {
   timeMin: string;
@@ -104,6 +105,40 @@ export async function deleteEvent(id: string) {
   await calendar.events.delete({
     calendarId: calendarId!,
     eventId: id,
+  });
+}
+
+export async function truncateRecurringEvent(recurringEventId: string, boundaryISO: string) {
+  const calendar = await getCalendar();
+  const event = await calendar.events.get({
+    calendarId: calendarId!,
+    eventId: recurringEventId,
+  });
+  const recurrence = event.data.recurrence;
+  if (!recurrence || !recurrence.length) {
+    throw new Error("Recurring event rule missing");
+  }
+  const isAllDay = Boolean(event.data.start?.date && !event.data.start?.dateTime);
+  const boundaryDate = new Date(boundaryISO);
+  const untilDate = new Date(boundaryDate.getTime() - 1000);
+  const until = isAllDay
+    ? formatDate(untilDate, "yyyyMMdd")
+    : formatDate(untilDate, "yyyyMMdd'T'HHmmss'Z'");
+
+  const updatedRecurrence = recurrence.map((rule) => {
+    if (!rule.startsWith("RRULE")) return rule;
+    const withoutUntil = rule
+      .replace(/;COUNT=[^;]+/gi, "")
+      .replace(/;UNTIL=[^;]+/gi, "");
+    return `${withoutUntil};UNTIL=${until}`;
+  });
+
+  await calendar.events.patch({
+    calendarId: calendarId!,
+    eventId: recurringEventId,
+    requestBody: {
+      recurrence: updatedRecurrence,
+    },
   });
 }
 

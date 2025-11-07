@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { calendarIsConfigured, createEvent, deleteEvent, listEvents, updateEvent } from "@/lib/googleCalendar";
+import {
+  calendarIsConfigured,
+  createEvent,
+  deleteEvent,
+  listEvents,
+  truncateRecurringEvent,
+  updateEvent,
+} from "@/lib/googleCalendar";
 
 export const runtime = "nodejs";
 
@@ -137,14 +144,23 @@ export async function DELETE(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null);
-  const id = body?.id;
-
-  if (!id) {
-    return NextResponse.json({ error: "id is required" }, { status: 400 });
-  }
+  const scope = body?.scope ?? "single";
 
   try {
-    await deleteEvent(id);
+    if (scope === "future") {
+      const recurringEventId = body?.recurringEventId;
+      const start = body?.start;
+      if (!recurringEventId || !start) {
+        return NextResponse.json({ error: "recurringEventId and start are required" }, { status: 400 });
+      }
+      await truncateRecurringEvent(recurringEventId, parseDateTime(start));
+    } else {
+      const targetId = body?.id;
+      if (!targetId) {
+        return NextResponse.json({ error: "id is required" }, { status: 400 });
+      }
+      await deleteEvent(targetId);
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Google Calendar DELETE error", error);
