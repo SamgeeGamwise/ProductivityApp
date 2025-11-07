@@ -16,6 +16,7 @@ import {
   isToday,
   startOfDay,
   endOfDay,
+  addDays,
 } from "date-fns";
 
 type CalendarEvent = {
@@ -35,6 +36,7 @@ type NewEventState = {
   description: string;
   start: string;
   end: string;
+  allDay: boolean;
   recurrenceFrequency: RecurrenceFrequency;
   recurrenceInterval: number;
 };
@@ -59,6 +61,7 @@ function createDefaultEvent(): NewEventState {
     description: "",
     start: toInputValue(start),
     end: toInputValue(end),
+    allDay: false,
     recurrenceFrequency: "none",
     recurrenceInterval: 1,
   };
@@ -108,6 +111,47 @@ function toInputValue(date: Date) {
   const offset = date.getTimezoneOffset();
   const local = new Date(date.getTime() - offset * 60000);
   return local.toISOString().slice(0, 16);
+}
+
+function toDateInputValue(date: Date) {
+  return format(date, "yyyy-MM-dd");
+}
+
+function dateStringToDate(value: string) {
+  if (!value) return null;
+  return new Date(`${value}T00:00:00`);
+}
+
+function ensureDateInputFormat(value: string, fallback: Date) {
+  if (!value) return toDateInputValue(fallback);
+  if (value.length > 10) {
+    return toDateInputValue(new Date(value));
+  }
+  return value;
+}
+
+function ensureDateTimeInputFormat(value: string, fallback: Date) {
+  if (!value) return toInputValue(fallback);
+  if (value.length <= 10) {
+    const parsed = dateStringToDate(value) ?? fallback;
+    return toInputValue(parsed);
+  }
+  return value;
+}
+
+function exclusiveDateToInput(value?: string | null) {
+  if (!value) return "";
+  const date = dateStringToDate(value);
+  if (!date) return "";
+  const inclusive = addDays(date, -1);
+  return format(inclusive, "yyyy-MM-dd");
+}
+
+function inclusiveDateToExclusive(value: string) {
+  const date = dateStringToDate(value);
+  if (!date) throw new Error(`Invalid date: ${value}`);
+  const exclusive = addDays(date, 1);
+  return format(exclusive, "yyyy-MM-dd");
 }
 
 interface CalendarModuleProps {
@@ -214,6 +258,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
         description: newEvent.description,
         start: newEvent.start,
         end: newEvent.end,
+        allDay: newEvent.allDay,
         recurrence: recurrencePayload,
         ...(editingId ? { id: editingId } : {}),
       };
@@ -237,12 +282,16 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     const start = getEventDate(event.start) ?? new Date();
     const end = getEventDate(event.end) ?? new Date(start.getTime() + 30 * 60 * 1000);
     const recurrence = parseRecurrenceRule(event.recurrence?.[0]);
+    const isAllDayEvent = Boolean(event.start?.date && !event.start?.dateTime);
     setEditingId(event.id);
     setNewEvent({
       summary: event.summary ?? "",
       description: event.description ?? "",
-      start: toInputValue(start),
-      end: toInputValue(end),
+      start: isAllDayEvent ? event.start?.date ?? "" : toInputValue(start),
+      end: isAllDayEvent
+        ? exclusiveDateToInput(event.end?.date ?? event.start?.date ?? "") || event.start?.date ?? ""
+        : toInputValue(end),
+      allDay: isAllDayEvent,
       recurrenceFrequency: recurrence.frequency,
       recurrenceInterval: recurrence.interval,
     });
@@ -273,8 +322,8 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   };
 
   const effectiveViewMode = expanded ? viewMode : "week";
-  const visibleEvents = expanded ? events : events;
-  const overflow = expanded ? Math.max(events.length - visibleEvents.length, 0) : 0;
+  const visibleEvents = events;
+  const overflow = 0;
   const isEditing = Boolean(editingId);
   const navResetLabel = isExpandedMonthView ? "This Month" : "This Week";
 
@@ -302,6 +351,29 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     }
   };
 
+  const handleAllDayToggle = (checked: boolean) => {
+    setNewEvent((prev) => {
+      if (checked) {
+        const baseStart = ensureDateInputFormat(prev.start, new Date());
+        const baseEnd = ensureDateInputFormat(prev.end, new Date());
+        return {
+          ...prev,
+          allDay: true,
+          start: baseStart,
+          end: baseEnd || baseStart,
+        };
+      }
+      const fallbackStart = nextRoundedDate();
+      const fallbackEnd = new Date(fallbackStart.getTime() + 30 * 60 * 1000);
+      return {
+        ...prev,
+        allDay: false,
+        start: ensureDateTimeInputFormat(prev.start, fallbackStart),
+        end: ensureDateTimeInputFormat(prev.end, fallbackEnd),
+      };
+    });
+  };
+
   return (
     <>
       <ModuleCard
@@ -310,19 +382,31 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       className={expanded ? "min-h-0 w-full text-[13px]" : "min-h-0 w-full text-[12px]"}
       contentClassName={expanded ? "gap-4" : "gap-3"}
       actions={
-        <div className="flex flex-wrap gap-1.5 text-sm text-white/80">
-          <button
-            type="button"
-            onClick={() => {
-              resetForm();
-              setIsComposerModalOpen(true);
-            }}
-            className="rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-white/60"
-          >
-            Add event
-          </button>
+        <div className="flex w-full flex-col gap-3 text-sm text-white/80 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                resetForm();
+                setIsComposerModalOpen(true);
+              }}
+              className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-white/60"
+            >
+              Add event
+            </button>
+            {onToggleExpand && (
+              <button
+                type="button"
+                onClick={onToggleExpand}
+                className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-white/60"
+              >
+                {expanded ? "Dashboard view" : "Full view"}
+              </button>
+            )}
+          </div>
+
           {expanded && (
-            <>
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex rounded-full border border-white/20 p-0.5">
                 {["week", "month"].map((mode) => (
                   <button
@@ -333,52 +417,34 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                     }`}
                     onClick={() => setViewMode(mode as "week" | "month")}
                   >
-                    {mode}
+                    {mode === "week" ? "Week grid" : "Month grid"}
                   </button>
                 ))}
               </div>
-              {onToggleExpand && (
-                <button
-                  type="button"
-                  onClick={onToggleExpand}
-                  className="rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide hover:border-white/60"
-                >
-                  {expanded ? "Dashboard view" : "Full view"}
-                </button>
-              )}
-              <div className="flex gap-2">
+              <div className="flex items-center gap-1 rounded-full border border-white/20 px-1 py-0.5 text-xs">
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="rounded-full border border-white/20 px-3 py-1.5 text-xs hover:border-white/60"
+                  className="rounded-full px-3 py-1 text-white/80 transition hover:text-white"
                 >
-                  ← Prev
+                  ←
                 </button>
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="rounded-full border border-white/20 px-3 py-1.5 text-xs hover:border-white/60"
+                  className="rounded-full px-3 py-1 text-[11px] uppercase tracking-wide text-white/70 transition hover:text-white"
                 >
                   {navResetLabel}
                 </button>
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="rounded-full border border-white/20 px-3 py-1.5 text-xs hover:border-white/60"
+                  className="rounded-full px-3 py-1 text-white/80 transition hover:text-white"
                 >
-                  Next →
+                  →
                 </button>
               </div>
-            </>
-          )}
-          {!expanded && onToggleExpand && (
-            <button
-              type="button"
-              onClick={onToggleExpand}
-              className="rounded-full border border-white/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide hover:border-white/60"
-            >
-              Full view
-            </button>
+            </div>
           )}
         </div>
       }
@@ -460,24 +526,40 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wide text-slate-400">Start</label>
                 <input
-                  type="datetime-local"
+                  type={newEvent.allDay ? "date" : "datetime-local"}
                   className="calendar-field w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
                   value={newEvent.start}
-                  onChange={(event) => setNewEvent((prev) => ({ ...prev, start: event.target.value }))}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setNewEvent((prev) => ({ ...prev, start: value }));
+                  }}
                   required
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wide text-slate-400">End</label>
                 <input
-                  type="datetime-local"
+                  type={newEvent.allDay ? "date" : "datetime-local"}
                   className="calendar-field w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
                   value={newEvent.end}
-                  onChange={(event) => setNewEvent((prev) => ({ ...prev, end: event.target.value }))}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setNewEvent((prev) => ({ ...prev, end: value }));
+                  }}
                   required
                 />
               </div>
             </div>
+
+            <label className="flex items-center gap-3 text-sm font-medium text-white">
+              <input
+                type="checkbox"
+                checked={newEvent.allDay}
+                onChange={(event) => handleAllDayToggle(event.target.checked)}
+                className="h-4 w-4 rounded border border-white/40 bg-transparent text-sky-400 focus:ring-sky-500"
+              />
+              <span>All day event</span>
+            </label>
 
             <div className="space-y-2">
               <label className="text-xs uppercase tracking-wide text-slate-400">Repeats</label>

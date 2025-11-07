@@ -40,25 +40,46 @@ function buildRecurrenceRule(recurrence: RecurrencePayload) {
   return `RRULE:FREQ=${freq};INTERVAL=${interval}`;
 }
 
+function buildEventTiming(
+  startValue: string,
+  endValue: string,
+  allDay: boolean
+): { start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string } } {
+  if (allDay) {
+    const startDate = ensureDateInput(startValue, "start");
+    const inclusiveEnd = ensureDateInput(endValue, "end");
+    const exclusiveEnd = shiftDateString(inclusiveEnd, 1);
+    return {
+      start: { date: startDate },
+      end: { date: exclusiveEnd },
+    };
+  }
+
+  return {
+    start: { dateTime: parseDateTime(startValue) },
+    end: { dateTime: parseDateTime(endValue) },
+  };
+}
+
 export async function POST(request: NextRequest) {
   if (!calendarIsConfigured()) {
     return NextResponse.json({ error: "Calendar credentials missing", needsSetup: true }, { status: 400 });
   }
 
-  const { summary, description, start, end, recurrence } = await request.json();
+  const { summary, description, start, end, recurrence, allDay } = await request.json();
 
   if (!summary || !start || !end) {
     return NextResponse.json({ error: "summary, start, and end are required" }, { status: 400 });
   }
 
-  const recurrenceRule = buildRecurrenceRule(recurrence);
-
   try {
+    const timing = buildEventTiming(start, end, Boolean(allDay));
+    const recurrenceRule = buildRecurrenceRule(recurrence);
     const event = await createEvent({
       summary,
       description,
-      start: parseDateTime(start),
-      end: parseDateTime(end),
+      start: timing.start,
+      end: timing.end,
       recurrenceRule,
     });
 
@@ -78,21 +99,21 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Calendar credentials missing", needsSetup: true }, { status: 400 });
   }
 
-  const { id, summary, description, start, end, recurrence } = await request.json();
+  const { id, summary, description, start, end, recurrence, allDay } = await request.json();
 
   if (!id || !summary || !start || !end) {
     return NextResponse.json({ error: "id, summary, start, and end are required" }, { status: 400 });
   }
 
-  const recurrenceRule = buildRecurrenceRule(recurrence);
-
   try {
+    const timing = buildEventTiming(start, end, Boolean(allDay));
+    const recurrenceRule = buildRecurrenceRule(recurrence);
     const event = await updateEvent({
       id,
       summary,
       description,
-      start: parseDateTime(start),
-      end: parseDateTime(end),
+      start: timing.start,
+      end: timing.end,
       recurrenceRule,
     });
     return NextResponse.json({ event });
@@ -133,4 +154,24 @@ function parseDateTime(value: string) {
     throw new Error(`Invalid date: ${value}`);
   }
   return date.toISOString();
+}
+
+function ensureDateInput(value: string, label: string) {
+  if (!value) {
+    throw new Error(`Invalid ${label} date`);
+  }
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Invalid ${label} date`);
+  }
+  return value.slice(0, 10);
+}
+
+function shiftDateString(value: string, amount: number) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Invalid date: ${value}`);
+  }
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
 }
