@@ -9,7 +9,8 @@ const SCALE_OPTIONS = [
   { value: 1.1, label: "Cozy" },
   { value: 1.2, label: "Roomy" },
   { value: 1.3, label: "Relaxed" },
-  { value: 1.4, label: "Max" },
+  { value: 1.45, label: "Large" },
+  { value: 1.6, label: "Max" },
 ];
 
 export default function SettingsPage() {
@@ -72,7 +73,7 @@ export default function SettingsPage() {
                   id="ui-scale"
                   type="range"
                   min={0.95}
-                  max={1.4}
+                  max={1.6}
                   step={0.05}
                   value={uiScale}
                   onChange={(event) => setUiScale(Number(event.target.value))}
