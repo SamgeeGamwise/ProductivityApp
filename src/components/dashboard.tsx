@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CalendarModule } from "./modules/calendar-module";
 import { TodoModule } from "./modules/todo-module";
 import { ChoresModule } from "./modules/chores-module";
+import { WeatherModule } from "./modules/weather-module";
 
 export function Dashboard() {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
@@ -25,8 +26,11 @@ export function Dashboard() {
             </div>
           ) : (
             <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[1.5fr_1fr]">
-              <div className="flex min-h-0">
-                <CalendarModule onToggleExpand={() => setCalendarExpanded(true)} />
+              <div className="flex min-h-0 flex-col gap-4">
+                <WeatherModule />
+                <div className="flex min-h-0 flex-1">
+                  <CalendarModule onToggleExpand={() => setCalendarExpanded(true)} />
+                </div>
               </div>
               <div className="grid min-h-0 grid-rows-2 gap-4">
                 <div className="flex min-h-0">

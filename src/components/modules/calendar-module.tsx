@@ -18,6 +18,7 @@ import {
   endOfDay,
   addDays,
 } from "date-fns";
+import { useWeather, WeatherDay } from "@/hooks/useWeather";
 
 type CalendarEvent = {
   id: string;
@@ -154,6 +155,10 @@ function inclusiveDateToExclusive(value: string) {
   return format(exclusive, "yyyy-MM-dd");
 }
 
+function getWeatherForDate(map: Map<string, WeatherDay>, date: Date) {
+  return map.get(format(date, "yyyy-MM-dd"));
+}
+
 interface CalendarModuleProps {
   expanded?: boolean;
   onToggleExpand?: () => void;
@@ -170,6 +175,14 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   const [newEvent, setNewEvent] = useState<NewEventState>(() => createDefaultEvent());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isComposerModalOpen, setIsComposerModalOpen] = useState(false);
+  const { daily: weatherDaily } = useWeather(14);
+  const weatherByDate = useMemo(() => {
+    const map = new Map<string, WeatherDay>();
+    weatherDaily.forEach((day) => {
+      map.set(day.date, day);
+    });
+    return map;
+  }, [weatherDaily]);
 
   const weekRange = useMemo(() => {
     const anchor = addWeeks(new Date(), weekOffset);
@@ -374,6 +387,8 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     });
   };
 
+  const dashboardWeather = !expanded ? getWeatherForDate(weatherByDate, range.start) : null;
+
   return (
     <>
       <ModuleCard
@@ -464,6 +479,18 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
       {error && <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</p>}
 
+      {dashboardWeather && (
+        <div className="mb-3 flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs text-white/80">
+          <p className="text-[0.7rem] uppercase tracking-[0.3em] text-white/60">Today's weather</p>
+          <p className="text-sm font-semibold text-white">
+            {dashboardWeather.max}°F / {dashboardWeather.min}°F
+          </p>
+          {typeof dashboardWeather.precipitation === "number" && dashboardWeather.precipitation > 0 && (
+            <p className="text-white/70">{dashboardWeather.precipitation}% chance of rain</p>
+          )}
+        </div>
+      )}
+
       <EventList
         events={visibleEvents}
         isLoading={isLoading}
@@ -472,6 +499,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
         range={range}
         viewMode={effectiveViewMode}
         currentMonthStart={monthRange.monthStart}
+        weatherByDate={weatherByDate}
         onEdit={handleEdit}
         onDelete={handleDelete}
         editingId={editingId}
@@ -637,6 +665,7 @@ function EventList({
   range,
   viewMode,
   currentMonthStart,
+  weatherByDate,
   onEdit,
   onDelete,
   editingId,
@@ -648,6 +677,7 @@ function EventList({
   range: { start: Date; end: Date };
   viewMode: "week" | "month";
   currentMonthStart?: Date;
+  weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
   onDelete: (id: string | undefined) => void;
   editingId: string | null;
@@ -666,6 +696,7 @@ function EventList({
         events={events}
         range={range}
         currentMonthStart={currentMonthStart}
+        weatherByDate={weatherByDate}
         onEdit={onEdit}
         onDelete={onDelete}
         editingId={editingId}
@@ -674,7 +705,16 @@ function EventList({
   }
 
   if (expanded) {
-    return <CalendarWeekGrid events={events} range={range} onEdit={onEdit} onDelete={onDelete} editingId={editingId} />;
+    return (
+      <CalendarWeekGrid
+        events={events}
+        range={range}
+        weatherByDate={weatherByDate}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        editingId={editingId}
+      />
+    );
   }
 
   return (
@@ -727,12 +767,14 @@ function EventList({
 function CalendarWeekGrid({
   events,
   range,
+  weatherByDate,
   onEdit,
   onDelete,
   editingId,
 }: {
   events: CalendarEvent[];
   range: { start: Date; end: Date };
+  weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
   onDelete: (id: string | undefined) => void;
   editingId: string | null;
@@ -754,6 +796,7 @@ function CalendarWeekGrid({
                 const second = getEventDate(b.start)?.getTime() ?? 0;
                 return first - second;
               });
+            const weather = getWeatherForDate(weatherByDate, day);
 
             return (
               <div key={day.toISOString()} className="flex min-h-0 flex-col rounded-xl border border-white/5 bg-slate-950/50 p-1.5">
@@ -798,6 +841,16 @@ function CalendarWeekGrid({
                   ) : (
                     <p className="text-xs text-slate-500">— Free —</p>
                   )}
+                  {weather && (
+                    <div className="mt-1 text-[0.7rem] text-white/70">
+                      <p>
+                        {weather.max}°F / {weather.min}°F
+                      </p>
+                      {typeof weather.precipitation === "number" && weather.precipitation > 0 && (
+                        <p>{weather.precipitation}% rain</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -812,6 +865,7 @@ function CalendarMonthGrid({
   events,
   range,
   currentMonthStart,
+  weatherByDate,
   onEdit,
   onDelete,
   editingId,
@@ -819,6 +873,7 @@ function CalendarMonthGrid({
   events: CalendarEvent[];
   range: { start: Date; end: Date };
   currentMonthStart: Date;
+  weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
   onDelete: (id: string | undefined) => void;
   editingId: string | null;
@@ -857,6 +912,7 @@ function CalendarMonthGrid({
               const remaining = dayEvents.length - preview.length;
               const inCurrentMonth = isSameMonth(day, currentMonthStart);
               const today = isToday(day);
+              const weather = getWeatherForDate(weatherByDate, day);
 
               return (
                 <div
@@ -873,7 +929,17 @@ function CalendarMonthGrid({
                       <span className="rounded-full bg-sky-500/30 px-1.5 py-0.5 text-[0.6rem] text-sky-50">Today</span>
                     )}
                   </div>
-                  <div className="mt-1.5 flex-1 space-y-1 overflow-hidden">
+                  {weather && (
+                    <div className="mt-1 text-[0.65rem] text-white/70">
+                      <p>
+                        {weather.max}°F / {weather.min}°F
+                      </p>
+                      {typeof weather.precipitation === "number" && weather.precipitation > 0 && (
+                        <p>{weather.precipitation}% rain</p>
+                      )}
+                    </div>
+                  )}
+                  <div className="mt-1 flex-1 space-y-1 overflow-hidden">
                     {preview.length ? (
                       preview.map((event) => {
                         const recurrenceNote = describeRecurrence(event.recurrence?.[0]);
