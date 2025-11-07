@@ -379,7 +379,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       <ModuleCard
       title="Calendar"
       accent="from-sky-500/40 to-blue-500/10"
-      className={expanded ? "min-h-0 w-full text-[13px]" : "min-h-0 w-full text-[12px]"}
+      className={expanded ? "min-h-0 w-full text-sm" : "min-h-0 w-full text-xs"}
       contentClassName={expanded ? "gap-4" : "gap-3"}
       actions={
         <div className="flex w-full flex-col gap-3 text-sm text-white/80 lg:flex-row lg:items-center lg:justify-between">
@@ -771,10 +771,10 @@ function CalendarWeekGrid({
                       className="space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-1.5 text-xs text-white/90"
                     >
                           <p className="font-semibold">{event.summary || "(untitled)"}</p>
-                          <p className="text-[9px] uppercase tracking-wide text-slate-200">{formatEventRange(event)}</p>
-                          {event.location && <p className="text-[9px] text-slate-300">{event.location}</p>}
-                          {recurrenceNote && <p className="text-[9px] text-slate-200/80">{recurrenceNote}</p>}
-                          <div className="flex gap-1.5 text-[9px] font-semibold uppercase">
+                      <p className="text-[0.6rem] uppercase tracking-wide text-slate-200">{formatEventRange(event)}</p>
+                      {event.location && <p className="text-[0.6rem] text-slate-300">{event.location}</p>}
+                      {recurrenceNote && <p className="text-[0.6rem] text-slate-200/80">{recurrenceNote}</p>}
+                      <div className="flex gap-1.5 text-[0.6rem] font-semibold uppercase">
                             <button
                               type="button"
                               className="text-white hover:text-slate-200"
@@ -870,7 +870,7 @@ function CalendarMonthGrid({
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold">{format(day, "d")}</span>
                     {today && (
-                      <span className="rounded-full bg-sky-500/30 px-1.5 py-[2px] text-[9px] text-sky-50">Today</span>
+                      <span className="rounded-full bg-sky-500/30 px-1.5 py-0.5 text-[0.6rem] text-sky-50">Today</span>
                     )}
                   </div>
                   <div className="mt-1.5 flex-1 space-y-1 overflow-hidden">
@@ -883,10 +883,10 @@ function CalendarMonthGrid({
                             className="space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-1.5 text-xs text-white/90"
                           >
                             <p className="font-semibold">{event.summary || "(untitled)"}</p>
-                            <p className="text-[9px] uppercase tracking-wide text-slate-200">
+                            <p className="text-[0.6rem] uppercase tracking-wide text-slate-200">
                               {formatEventRange(event)}
                             </p>
-                            {recurrenceNote && <p className="text-[9px] text-slate-200/80">{recurrenceNote}</p>}
+                            {recurrenceNote && <p className="text-[0.6rem] text-slate-200/80">{recurrenceNote}</p>}
                           </div>
                         );
                       })
@@ -895,7 +895,7 @@ function CalendarMonthGrid({
                     )}
                   </div>
                   {remaining > 0 && (
-                    <p className="pt-1 text-[9px] uppercase tracking-[0.3em] text-slate-500">+{remaining} more</p>
+                    <p className="pt-1 text-[0.6rem] uppercase tracking-[0.3em] text-slate-500">+{remaining} more</p>
                   )}
                 </div>
               );
