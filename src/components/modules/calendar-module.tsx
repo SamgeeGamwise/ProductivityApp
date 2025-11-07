@@ -1163,10 +1163,6 @@ function CalendarMonthGrid({
     weeks.push(days.slice(index, index + 7));
   }
 
-  const monthHasWeather = weeks.some((week) =>
-    week.some((day) => Boolean(getWeatherForDate(weatherByDate, day)))
-  );
-
   return (
     <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-white/5 bg-slate-900/60 p-2.5">
       <div className="grid grid-cols-7 gap-1.5 text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -1194,7 +1190,6 @@ function CalendarMonthGrid({
               const remaining = dayEvents.length - preview.length;
               const inCurrentMonth = isSameMonth(day, currentMonthStart);
               const today = isToday(day);
-              const weather = getWeatherForDate(weatherByDate, day);
 
               return (
                 <div
@@ -1211,20 +1206,6 @@ function CalendarMonthGrid({
                       <span className="rounded-full bg-sky-500/30 px-1.5 py-0.5 text-[0.6rem] text-sky-50">Today</span>
                     )}
                   </div>
-                  {weather ? (
-                    <div className="mt-1 text-[0.6rem] text-white/70">
-                      <p>
-                        {weather.max}°F / {weather.min}°F
-                      </p>
-                      {typeof weather.precipitation === "number" && weather.precipitation > 0 && (
-                        <p>{weather.precipitation}% rain</p>
-                      )}
-                    </div>
-                  ) : monthHasWeather ? (
-                    <div className="mt-1 text-[0.6rem] text-white/70">
-                      <span className="text-transparent">placeholder</span>
-                    </div>
-                  ) : null}
                   <div className="mt-1 flex-1 space-y-1 overflow-hidden">
                     {preview.length ? (
                       preview.map((event) => {
