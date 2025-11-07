@@ -1,0 +1,78 @@
+import { google } from "googleapis";
+
+type ListEventsParams = {
+  timeMin: string;
+  timeMax: string;
+  maxResults?: number;
+};
+
+type CreateEventInput = {
+  summary: string;
+  description?: string;
+  start: string;
+  end: string;
+};
+
+const calendarId = process.env.GOOGLE_CALENDAR_ID;
+const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+
+const scopes = ["https://www.googleapis.com/auth/calendar"];
+let authClient: ReturnType<typeof google.auth.JWT> | null = null;
+
+function getAuthClient() {
+  if (!calendarIsConfigured()) {
+    throw new Error("Google Calendar credentials are missing");
+  }
+
+  if (!authClient) {
+    authClient = new google.auth.JWT({
+      email: clientEmail,
+      key: privateKey,
+      scopes,
+    });
+  }
+
+  return authClient;
+}
+
+async function getCalendar() {
+  const auth = getAuthClient();
+  if (!auth.credentials) {
+    await auth.authorize();
+  }
+  return google.calendar({ version: "v3", auth });
+}
+
+export async function listEvents(params: ListEventsParams) {
+  const calendar = await getCalendar();
+  const response = await calendar.events.list({
+    calendarId: calendarId!,
+    timeMin: params.timeMin,
+    timeMax: params.timeMax,
+    singleEvents: true,
+    orderBy: "startTime",
+    maxResults: params.maxResults ?? 25,
+  });
+
+  return response.data.items ?? [];
+}
+
+export async function createEvent(input: CreateEventInput) {
+  const calendar = await getCalendar();
+  const response = await calendar.events.insert({
+    calendarId: calendarId!,
+    requestBody: {
+      summary: input.summary,
+      description: input.description,
+      start: { dateTime: input.start },
+      end: { dateTime: input.end },
+    },
+  });
+
+  return response.data;
+}
+
+export function calendarIsConfigured() {
+  return Boolean(calendarId && clientEmail && privateKey);
+}
