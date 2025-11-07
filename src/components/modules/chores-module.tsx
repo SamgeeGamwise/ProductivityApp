@@ -67,7 +67,6 @@ export function ChoresModule() {
             </button>
           </li>
         ))}
-        {!items.length && <p className="text-sm text-slate-400">Tap a chip to add a chore.</p>}
       </ul>
       {remaining > 0 && <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">+{remaining} more</p>}
     </ModuleCard>
