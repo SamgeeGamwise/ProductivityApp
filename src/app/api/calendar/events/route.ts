@@ -44,7 +44,11 @@ function buildEventTiming(
   startValue: string,
   endValue: string,
   allDay: boolean
-): { start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string } } {
+): {
+  start: { dateTime?: string; date?: string; timeZone?: string };
+  end: { dateTime?: string; date?: string; timeZone?: string };
+} {
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   if (allDay) {
     const startDate = ensureDateInput(startValue, "start");
     const inclusiveEnd = ensureDateInput(endValue, "end");
@@ -56,8 +60,8 @@ function buildEventTiming(
   }
 
   return {
-    start: { dateTime: parseDateTime(startValue) },
-    end: { dateTime: parseDateTime(endValue) },
+    start: { dateTime: parseDateTime(startValue), timeZone },
+    end: { dateTime: parseDateTime(endValue), timeZone },
   };
 }
 
