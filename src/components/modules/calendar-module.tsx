@@ -2,7 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ModuleCard } from "../module-card";
-import { addWeeks, format, startOfWeek, endOfWeek } from "date-fns";
+import { addWeeks, format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
+import clsx from "clsx";
 
 type CalendarEvent = {
   id: string;
@@ -50,7 +51,12 @@ function toInputValue(date: Date) {
   return local.toISOString().slice(0, 16);
 }
 
-export function CalendarModule() {
+interface CalendarModuleProps {
+  expanded?: boolean;
+  onToggleExpand?: () => void;
+}
+
+export function CalendarModule({ expanded = false, onToggleExpand }: CalendarModuleProps) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [weekOffset, setWeekOffset] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,35 +122,49 @@ export function CalendarModule() {
     }
   };
 
+  const visibleEvents = expanded ? events : events.slice(0, 6);
+  const overflow = expanded ? 0 : Math.max(events.length - visibleEvents.length, 0);
+
   return (
     <ModuleCard
       title="Google Calendar"
       accent="from-sky-500/40 to-blue-500/10"
-      className="min-h-0"
-      contentClassName="gap-4"
+      className="min-h-0 w-full"
+      contentClassName={expanded ? "gap-5" : "gap-4"}
       actions={
-        <div className="flex gap-2 text-xs text-white/80">
-          <button
-            type="button"
-            onClick={() => setWeekOffset((value) => value - 1)}
-            className="rounded-full border border-white/20 px-3 py-1 hover:border-white/60"
-          >
-            ← Prev
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekOffset(0)}
-            className="rounded-full border border-white/20 px-3 py-1 hover:border-white/60"
-          >
-            This Week
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekOffset((value) => value + 1)}
-            className="rounded-full border border-white/20 px-3 py-1 hover:border-white/60"
-          >
-            Next →
-          </button>
+        <div className="flex flex-wrap gap-2 text-xs text-white/80">
+          {onToggleExpand && (
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide hover:border-white/60"
+            >
+              {expanded ? "Dashboard view" : "Full view"}
+            </button>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setWeekOffset((value) => value - 1)}
+              className="rounded-full border border-white/20 px-3 py-1 hover:border-white/60"
+            >
+              ← Prev
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeekOffset(0)}
+              className="rounded-full border border-white/20 px-3 py-1 hover:border-white/60"
+            >
+              This Week
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeekOffset((value) => value + 1)}
+              className="rounded-full border border-white/20 px-3 py-1 hover:border-white/60"
+            >
+              Next →
+            </button>
+          </div>
         </div>
       }
     >
@@ -165,7 +185,13 @@ export function CalendarModule() {
 
       <QuickEventTemplates onApply={(template) => applyTemplate(template, setNewEvent)} />
 
-      <form onSubmit={handleCreate} className="grid gap-3 rounded-xl border border-white/5 bg-slate-900/60 p-3 text-sm lg:grid-cols-2">
+      <form
+        onSubmit={handleCreate}
+        className={clsx(
+          "grid gap-3 rounded-xl border border-white/5 bg-slate-900/60 p-3 text-sm",
+          expanded ? "lg:grid-cols-3" : "lg:grid-cols-2"
+        )}
+      >
         <div className="space-y-3">
           <input
             className="w-full rounded-lg border border-white/10 bg-slate-950/70 px-3 py-2 text-white outline-none focus:border-white/40"
@@ -213,7 +239,13 @@ export function CalendarModule() {
         </div>
       </form>
 
-      <EventList events={events.slice(0, 6)} isLoading={isLoading} overflow={events.length > 6 ? events.length - 6 : 0} />
+      <EventList
+        events={visibleEvents}
+        isLoading={isLoading}
+        overflow={overflow}
+        expanded={expanded}
+        range={range}
+      />
     </ModuleCard>
   );
 }
@@ -265,13 +297,29 @@ function applyTemplate(
   });
 }
 
-function EventList({ events, isLoading, overflow }: { events: CalendarEvent[]; isLoading: boolean; overflow: number }) {
+function EventList({
+  events,
+  isLoading,
+  overflow,
+  expanded,
+  range,
+}: {
+  events: CalendarEvent[];
+  isLoading: boolean;
+  overflow: number;
+  expanded: boolean;
+  range: { start: Date; end: Date };
+}) {
   if (isLoading && !events.length) {
     return <p className="text-sm text-slate-400">Loading events…</p>;
   }
 
   if (!events.length) {
     return <p className="text-sm text-slate-400">No events scheduled for this window.</p>;
+  }
+
+  if (expanded) {
+    return <CalendarWeekGrid events={events} range={range} />;
   }
 
   return (
@@ -297,9 +345,76 @@ function EventList({ events, isLoading, overflow }: { events: CalendarEvent[]; i
   );
 }
 
+function CalendarWeekGrid({ events, range }: { events: CalendarEvent[]; range: { start: Date; end: Date } }) {
+  const days = eachDayOfInterval({ start: range.start, end: range.end });
+
+  return (
+    <div className="flex flex-1 flex-col rounded-2xl border border-white/5 bg-slate-900/60 p-3">
+      <div className="grid flex-1 grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+        {days.map((day) => {
+          const dayEvents = events
+            .filter((event) => {
+              const start = getEventDate(event.start);
+              return start && isSameDay(start, day);
+            })
+            .sort((a, b) => {
+              const first = getEventDate(a.start)?.getTime() ?? 0;
+              const second = getEventDate(b.start)?.getTime() ?? 0;
+              return first - second;
+            });
+
+          return (
+            <div key={day.toISOString()} className="flex min-h-0 flex-col rounded-xl border border-white/5 bg-slate-950/50 p-2">
+              <div className="flex items-baseline justify-between border-b border-white/5 pb-1">
+                <p className="text-xs font-semibold text-white">{format(day, "EEE")}</p>
+                <p className="text-[11px] text-slate-400">{format(day, "MMM d")}</p>
+              </div>
+              <div className="mt-2 flex-1 space-y-2 overflow-hidden">
+                {dayEvents.length ? (
+                  dayEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="rounded-lg border border-sky-400/30 bg-sky-400/15 p-2 text-[11px] text-white/90"
+                    >
+                      <p className="font-semibold">{event.summary || "(untitled)"}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-slate-200">
+                        {formatEventRange(event)}
+                      </p>
+                      {event.location && <p className="text-[10px] text-slate-300">{event.location}</p>}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-[11px] text-slate-500">— Free —</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function formatEventTime(value?: { date?: string | null; dateTime?: string | null }) {
   const timestamp = value?.dateTime || value?.date;
   if (!timestamp) return "—";
   const date = new Date(timestamp);
   return format(date, value?.date ? "EEE, MMM d" : "EEE h:mma");
+}
+
+function getEventDate(value?: { date?: string | null; dateTime?: string | null }) {
+  const iso = value?.dateTime || value?.date;
+  if (!iso) return null;
+  return new Date(iso);
+}
+
+function formatEventRange(event: CalendarEvent) {
+  const start = getEventDate(event.start);
+  const end = getEventDate(event.end);
+  if (!start || !end) return "";
+  const isAllDay = Boolean(event.start?.date && !event.start?.dateTime);
+  if (isAllDay) {
+    return "All day";
+  }
+  return `${format(start, "h:mma")} – ${format(end, "h:mma")}`;
 }

@@ -27,7 +27,6 @@ export function ModuleCard({
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-400">Module</p>
           <h2 className="text-lg font-semibold text-white">{title}</h2>
         </div>
         {actions}
