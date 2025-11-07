@@ -7,6 +7,8 @@ export type ListItem = {
   label: string;
   note?: string;
   done: boolean;
+  createdAt: string;
+  meta?: Record<string, unknown>;
 };
 
 const createId = () =>
@@ -23,12 +25,13 @@ export function usePersistentList(key: string, defaults: ListItem[] = []) {
     const stored = window.localStorage.getItem(key);
     if (stored) {
       try {
-        setItems(JSON.parse(stored));
+        const parsed: ListItem[] = JSON.parse(stored);
+        setItems(parsed.map(normalizeItem));
       } catch {
-        setItems(defaults);
+        setItems(defaults.map(normalizeItem));
       }
     } else {
-      setItems(defaults);
+      setItems(defaults.map(normalizeItem));
     }
     setIsHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -41,9 +44,19 @@ export function usePersistentList(key: string, defaults: ListItem[] = []) {
 
   const actions = useMemo(
     () => ({
-      add(label: string, note?: string) {
+      add(label: string, note?: string, meta?: Record<string, unknown>) {
         if (!label.trim()) return;
-        setItems((prev) => [...prev, { id: createId(), label: label.trim(), note, done: false }]);
+        setItems((prev) => [
+          ...prev,
+          {
+            id: createId(),
+            label: label.trim(),
+            note,
+            done: false,
+            createdAt: new Date().toISOString(),
+            meta,
+          },
+        ]);
       },
       toggle(id: string) {
         setItems((prev) => prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item)));
@@ -52,11 +65,22 @@ export function usePersistentList(key: string, defaults: ListItem[] = []) {
         setItems((prev) => prev.filter((item) => item.id !== id));
       },
       reset(data: ListItem[]) {
-        setItems(data);
+        setItems(data.map(normalizeItem));
       },
     }),
     []
   );
 
   return { items, ...actions };
+}
+
+function normalizeItem(item: Partial<ListItem>): ListItem {
+  return {
+    id: item.id ?? createId(),
+    label: item.label ?? "",
+    note: item.note,
+    done: Boolean(item.done),
+    createdAt: item.createdAt ?? new Date().toISOString(),
+    meta: item.meta,
+  };
 }
