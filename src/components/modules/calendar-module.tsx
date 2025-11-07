@@ -54,6 +54,10 @@ const recurrenceUnits: Record<Exclude<RecurrenceFrequency, "none">, string> = {
   monthly: "month",
 };
 
+const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0"));
+const MINUTE_OPTIONS = ["00", "15", "30", "45"];
+const MERIDIEMS: Array<"AM" | "PM"> = ["AM", "PM"];
+
 function createDefaultEvent(): NewEventState {
   const start = nextRoundedDate();
   const end = new Date(start.getTime() + 30 * 60 * 1000);
@@ -157,6 +161,27 @@ function inclusiveDateToExclusive(value: string) {
 
 function getWeatherForDate(map: Map<string, WeatherDay>, date: Date) {
   return map.get(format(date, "yyyy-MM-dd"));
+}
+
+function splitDateTime(value: string) {
+  const date = value ? format(new Date(value), "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+  const jsDate = new Date(value || date);
+  let hours = jsDate.getHours();
+  const meridiem: "AM" | "PM" = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  const hour = String(hours).padStart(2, "0");
+  const minute = String(jsDate.getMinutes()).padStart(2, "0").replace(/^(\d)$/, "0$1");
+  return { date, hour, minute: minute.padStart(2, "0"), meridiem };
+}
+
+function buildDateTime(date: string, hour: string, minute: string, meridiem: "AM" | "PM") {
+  let hours = Number(hour);
+  if (meridiem === "PM" && hours < 12) hours += 12;
+  if (meridiem === "AM" && hours === 12) hours = 0;
+  const base = date ? new Date(`${date}T00:00:00`) : new Date();
+  base.setHours(hours, Number(minute) || 0, 0, 0);
+  return toInputValue(base);
 }
 
 interface CalendarModuleProps {
@@ -388,6 +413,32 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   };
 
   const dashboardWeather = !expanded ? getWeatherForDate(weatherByDate, range.start) : null;
+  const startTimeParts = splitDateTime(newEvent.start || toInputValue(new Date()));
+  const endTimeParts = splitDateTime(newEvent.end || toInputValue(new Date()));
+  const startDateValue = ensureDateInputFormat(newEvent.start, new Date());
+  const endDateValue = ensureDateInputFormat(newEvent.end, new Date());
+
+  const updateDateControl = (
+    field: "start" | "end",
+    updates: Partial<{ date: string; hour: string; minute: string; meridiem: "AM" | "PM" }>
+  ) => {
+    setNewEvent((prev) => {
+      if (prev.allDay) {
+        if (!updates.date) return prev;
+        return field === "start" ? { ...prev, start: updates.date } : { ...prev, end: updates.date };
+      }
+      const currentValue = field === "start" ? prev.start : prev.end;
+      const parts = splitDateTime(currentValue);
+      const nextParts = {
+        date: updates.date ?? parts.date,
+        hour: updates.hour ?? parts.hour,
+        minute: updates.minute ?? parts.minute,
+        meridiem: updates.meridiem ?? parts.meridiem,
+      };
+      const nextValue = buildDateTime(nextParts.date, nextParts.hour, nextParts.minute, nextParts.meridiem);
+      return field === "start" ? { ...prev, start: nextValue } : { ...prev, end: nextValue };
+    });
+  };
 
   return (
     <>
@@ -555,29 +606,101 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wide text-slate-400">Start</label>
-                <input
-                  type={newEvent.allDay ? "date" : "datetime-local"}
-                  className="calendar-field w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
-                  value={newEvent.start}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setNewEvent((prev) => ({ ...prev, start: value }));
-                  }}
-                  required
-                />
+                <div className="space-y-2">
+                  <input
+                    type="date"
+                    className="calendar-field w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
+                    value={newEvent.allDay ? startDateValue : startTimeParts.date}
+                    onChange={(event) => updateDateControl("start", { date: event.target.value })}
+                    required
+                  />
+                  {!newEvent.allDay && (
+                    <div className="grid grid-cols-3 gap-2 sm:max-w-xs">
+                      <select
+                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        value={startTimeParts.hour}
+                        onChange={(event) => updateDateControl("start", { hour: event.target.value })}
+                      >
+                        {HOUR_OPTIONS.map((hour) => (
+                          <option key={hour} value={hour}>
+                            {hour}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        value={startTimeParts.minute}
+                        onChange={(event) => updateDateControl("start", { minute: event.target.value })}
+                      >
+                        {MINUTE_OPTIONS.map((minute) => (
+                          <option key={minute} value={minute}>
+                            :{minute}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        value={startTimeParts.meridiem}
+                        onChange={(event) => updateDateControl("start", { meridiem: event.target.value as "AM" | "PM" })}
+                      >
+                        {MERIDIEMS.map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wide text-slate-400">End</label>
-                <input
-                  type={newEvent.allDay ? "date" : "datetime-local"}
-                  className="calendar-field w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
-                  value={newEvent.end}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setNewEvent((prev) => ({ ...prev, end: value }));
-                  }}
-                  required
-                />
+                <div className="space-y-2">
+                  <input
+                    type="date"
+                    className="calendar-field w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
+                    value={newEvent.allDay ? endDateValue : endTimeParts.date}
+                    onChange={(event) => updateDateControl("end", { date: event.target.value })}
+                    required
+                  />
+                  {!newEvent.allDay && (
+                    <div className="grid grid-cols-3 gap-2 sm:max-w-xs">
+                      <select
+                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        value={endTimeParts.hour}
+                        onChange={(event) => updateDateControl("end", { hour: event.target.value })}
+                      >
+                        {HOUR_OPTIONS.map((hour) => (
+                          <option key={hour} value={hour}>
+                            {hour}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        value={endTimeParts.minute}
+                        onChange={(event) => updateDateControl("end", { minute: event.target.value })}
+                      >
+                        {MINUTE_OPTIONS.map((minute) => (
+                          <option key={minute} value={minute}>
+                            :{minute}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        value={endTimeParts.meridiem}
+                        onChange={(event) => updateDateControl("end", { meridiem: event.target.value as "AM" | "PM" })}
+                      >
+                        {MERIDIEMS.map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
