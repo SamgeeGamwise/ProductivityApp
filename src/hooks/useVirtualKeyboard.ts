@@ -18,7 +18,10 @@ export function useVirtualKeyboard() {
       if (!target) return;
       if (!isEditableElement(target)) return;
       requestAnimationFrame(() => {
-        vk.show?.().catch(() => {});
+        const maybePromise = vk.show?.();
+        if (maybePromise && typeof maybePromise.catch === "function") {
+          maybePromise.catch(() => {});
+        }
       });
     };
 
