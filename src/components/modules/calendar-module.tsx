@@ -406,42 +406,44 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
           </div>
 
           {expanded && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex rounded-full border border-white/20 p-0.5">
-                {["week", "month"].map((mode) => (
+                {(["week", "month"] as Array<"week" | "month">).map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition ${
                       viewMode === mode ? "bg-white/25 text-white" : "text-white/60 hover:text-white"
                     }`}
-                    onClick={() => setViewMode(mode as "week" | "month")}
+                    onClick={() => setViewMode(mode)}
                   >
                     {mode === "week" ? "Week grid" : "Month grid"}
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-1 rounded-full border border-white/20 px-1 py-0.5 text-xs">
+              <div className="flex items-center gap-2 rounded-full border border-white/20 px-2 py-1 text-xs uppercase tracking-wide text-white/70">
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="rounded-full px-3 py-1 text-white/80 transition hover:text-white"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-lg text-white transition hover:bg-white/30"
+                  aria-label="Previous period"
                 >
-                  ←
+                  ‹
                 </button>
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="rounded-full px-3 py-1 text-[11px] uppercase tracking-wide text-white/70 transition hover:text-white"
+                  className="rounded-full bg-white/5 px-3 py-1 text-white transition hover:bg-white/20"
                 >
-                  {navResetLabel}
+                  Jump to today
                 </button>
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="rounded-full px-3 py-1 text-white/80 transition hover:text-white"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-lg text-white transition hover:bg-white/30"
+                  aria-label="Next period"
                 >
-                  →
+                  ›
                 </button>
               </div>
             </div>
