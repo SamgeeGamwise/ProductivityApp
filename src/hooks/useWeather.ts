@@ -13,6 +13,7 @@ export function useWeather(days = 7) {
   const [daily, setDaily] = useState<WeatherDay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -26,6 +27,7 @@ export function useWeather(days = 7) {
         const parsed = parseWeather(payload);
         if (!cancelled) {
           setDaily(parsed);
+          setLastUpdated(Date.now());
         }
       } catch (err) {
         if (!cancelled) {
@@ -37,11 +39,14 @@ export function useWeather(days = 7) {
         }
       }
     }
-    load();
+    const shouldRefresh = !lastUpdated || Date.now() - lastUpdated >= 4 * 60 * 60 * 1000;
+    if (shouldRefresh) {
+      load();
+    }
     return () => {
       cancelled = true;
     };
-  }, [days]);
+  }, [days, lastUpdated]);
 
   return { daily, isLoading, error };
 }
