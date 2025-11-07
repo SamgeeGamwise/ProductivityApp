@@ -289,7 +289,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       description: event.description ?? "",
       start: isAllDayEvent ? event.start?.date ?? "" : toInputValue(start),
       end: isAllDayEvent
-        ? exclusiveDateToInput(event.end?.date ?? event.start?.date ?? "") || event.start?.date ?? ""
+        ? (exclusiveDateToInput(event.end?.date ?? event.start?.date ?? "") ?? event.start?.date ?? "")
         : toInputValue(end),
       allDay: isAllDayEvent,
       recurrenceFrequency: recurrence.frequency,
