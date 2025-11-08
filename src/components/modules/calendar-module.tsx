@@ -58,6 +58,8 @@ const recurrenceUnits: Record<Exclude<RecurrenceFrequency, "none">, string> = {
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0"));
 const MINUTE_OPTIONS = ["00", "15", "30", "45"];
 const MERIDIEMS: Array<"AM" | "PM"> = ["AM", "PM"];
+const AUTO_EVENT_DURATION_MS = 60 * 60 * 1000;
+const DEFAULT_EVENT_START_HOUR = 9;
 
 function createDefaultEvent(): NewEventState {
   const start = nextRoundedDate();
@@ -205,6 +207,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   const [deleteScope, setDeleteScope] = useState<"single" | "future" | "series">("single");
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [activeEditEvent, setActiveEditEvent] = useState<CalendarEvent | null>(null);
   const { daily: weatherDaily } = useWeather(14);
   const weatherByDate = useMemo(() => {
     const map = new Map<string, WeatherDay>();
@@ -278,7 +281,24 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   const resetForm = () => {
     setNewEvent(createDefaultEvent());
     setEditingId(null);
+    setActiveEditEvent(null);
   };
+
+  const openComposerForDate = useCallback((targetDate: Date) => {
+    const start = new Date(targetDate);
+    start.setHours(DEFAULT_EVENT_START_HOUR, 0, 0, 0);
+    const end = new Date(start.getTime() + AUTO_EVENT_DURATION_MS);
+    const template = createDefaultEvent();
+    setEditingId(null);
+    setActiveEditEvent(null);
+    setNewEvent({
+      ...template,
+      start: toInputValue(start),
+      end: toInputValue(end),
+      allDay: false,
+    });
+    setIsComposerModalOpen(true);
+  }, []);
 
   const closeComposer = () => {
     setIsComposerModalOpen(false);
@@ -320,21 +340,12 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     }
   };
 
-  const handleEdit = (event: CalendarEvent) => {
-    if (!event.id) return;
+  const openEditComposer = (event: CalendarEvent, targetId: string) => {
     const start = getEventDate(event.start) ?? new Date();
     const end = getEventDate(event.end) ?? new Date(start.getTime() + 30 * 60 * 1000);
     const recurrence = parseRecurrenceRule(event.recurrence?.[0]);
     const isAllDayEvent = Boolean(event.start?.date && !event.start?.dateTime);
-    let targetId = event.id;
-    if (event.recurringEventId && typeof window !== "undefined") {
-      const editSeries = window.confirm(
-        "Edit entire series? Select OK for the entire series, Cancel for just this event."
-      );
-      if (editSeries) {
-        targetId = event.recurringEventId;
-      }
-    }
+    setActiveEditEvent(event);
     setEditingId(targetId);
     setNewEvent({
       summary: event.summary ?? "",
@@ -349,6 +360,20 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     });
     setIsComposerModalOpen(true);
   };
+
+  const handleEdit = (event: CalendarEvent) => {
+    if (!event.id) return;
+    const targetId = event.recurringEventId ?? event.id;
+    openEditComposer(event, targetId);
+  };
+
+  const handleComposerDelete = () => {
+    if (!activeEditEvent) return;
+    const target = activeEditEvent;
+    closeComposer();
+    requestDelete(target);
+  };
+
 
   const requestDelete = (event: CalendarEvent) => {
     setDeleteTarget(event);
@@ -474,9 +499,13 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     setNewEvent((prev) => {
       if (prev.allDay) {
         if (!updates.date) return prev;
-        return field === "start" ? { ...prev, start: updates.date } : { ...prev, end: updates.date };
+        if (field === "start") {
+          return { ...prev, start: updates.date, end: updates.date };
+        }
+        return { ...prev, end: updates.date };
       }
-      const currentValue = field === "start" ? prev.start : prev.end;
+      const fallback = toInputValue(new Date());
+      const currentValue = field === "start" ? prev.start || fallback : prev.end || fallback;
       const parts = splitDateTime(currentValue);
       const nextParts = {
         date: updates.date ?? parts.date,
@@ -485,7 +514,19 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
         meridiem: updates.meridiem ?? parts.meridiem,
       };
       const nextValue = buildDateTime(nextParts.date, nextParts.hour, nextParts.minute, nextParts.meridiem);
-      return field === "start" ? { ...prev, start: nextValue } : { ...prev, end: nextValue };
+      if (field === "start") {
+        const shouldAutoAdjustEnd = Boolean(updates.date || updates.hour || updates.minute || updates.meridiem);
+        let nextEndValue = prev.end;
+        if (shouldAutoAdjustEnd) {
+          const nextStartDate = new Date(nextValue);
+          if (!Number.isNaN(nextStartDate.getTime())) {
+            const autoEnd = new Date(nextStartDate.getTime() + AUTO_EVENT_DURATION_MS);
+            nextEndValue = toInputValue(autoEnd);
+          }
+        }
+        return { ...prev, start: nextValue, end: nextEndValue };
+      }
+      return { ...prev, end: nextValue };
     });
   };
 
@@ -624,8 +665,8 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
             currentMonthStart={monthRange.monthStart}
             weatherByDate={weatherByDate}
             onEdit={handleEdit}
-            onDelete={requestDelete}
             editingId={editingId}
+            onCreateFromDate={openComposerForDate}
           />
         </div>
       </div>
@@ -788,56 +829,60 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
               <span>All day event</span>
             </label>
 
-            <div className="space-y-2">
-              <label className="text-xs uppercase tracking-wide text-slate-400">Repeats</label>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <select
-                  value={newEvent.recurrenceFrequency}
-                  onChange={(event) =>
-                    setNewEvent((prev) => ({
-                      ...prev,
-                      recurrenceFrequency: event.target.value as RecurrenceFrequency,
-                    }))
-                  }
-                  className="w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40 sm:w-48"
-                >
-                  <option value="none">Does not repeat</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                </select>
-                {newEvent.recurrenceFrequency !== "none" && (
-                  <div className="flex items-center gap-2 text-xs text-slate-200">
-                    <span>Every</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={newEvent.recurrenceInterval}
-                      onChange={(event) =>
-                        setNewEvent((prev) => ({
-                          ...prev,
-                          recurrenceInterval: Math.max(1, Number(event.target.value) || 1),
-                        }))
-                      }
-                      className="w-20 rounded-xl border border-white/15 bg-slate-900/60 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
-                    />
-                    <span>
-                      {recurrenceUnits[newEvent.recurrenceFrequency]}
-                      {newEvent.recurrenceInterval > 1 ? "s" : ""}
-                    </span>
-                  </div>
-                )}
+            {!isEditing && (
+              <div className="space-y-2">
+                <label className="text-xs uppercase tracking-wide text-slate-400">Repeats</label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <select
+                    value={newEvent.recurrenceFrequency}
+                    onChange={(event) =>
+                      setNewEvent((prev) => ({
+                        ...prev,
+                        recurrenceFrequency: event.target.value as RecurrenceFrequency,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40 sm:w-48"
+                  >
+                    <option value="none">Does not repeat</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                  {newEvent.recurrenceFrequency !== "none" && (
+                    <div className="flex items-center gap-2 text-xs text-slate-200">
+                      <span>Every</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={newEvent.recurrenceInterval}
+                        onChange={(event) =>
+                          setNewEvent((prev) => ({
+                            ...prev,
+                            recurrenceInterval: Math.max(1, Number(event.target.value) || 1),
+                          }))
+                        }
+                        className="w-20 rounded-xl border border-white/15 bg-slate-900/60 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
+                      />
+                      <span>
+                        {recurrenceUnits[newEvent.recurrenceFrequency]}
+                        {newEvent.recurrenceInterval > 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={closeComposer}
-                className="w-full rounded-2xl border border-white/20 px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-white/50"
-              >
-                Cancel
-              </button>
+              {isEditing && activeEditEvent && (
+                <button
+                  type="button"
+                  onClick={handleComposerDelete}
+                  className="w-full rounded-2xl bg-red-500/90 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-400 disabled:opacity-60"
+                >
+                  Delete
+                </button>
+              )}
               <button
                 type="submit"
                 className="w-full rounded-2xl bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:opacity-60"
@@ -931,8 +976,8 @@ function EventList({
   currentMonthStart,
   weatherByDate,
   onEdit,
-  onDelete,
   editingId,
+  onCreateFromDate,
 }: {
   events: CalendarEvent[];
   isLoading: boolean;
@@ -943,8 +988,8 @@ function EventList({
   currentMonthStart?: Date;
   weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
-  onDelete: (event: CalendarEvent) => void;
   editingId: string | null;
+  onCreateFromDate?: (date: Date) => void;
 }) {
   if (isLoading && !events.length) {
     return <p className="text-sm text-slate-400">Loading events…</p>;
@@ -962,8 +1007,8 @@ function EventList({
         currentMonthStart={currentMonthStart}
         weatherByDate={weatherByDate}
         onEdit={onEdit}
-        onDelete={onDelete}
         editingId={editingId}
+        onCreateFromDate={onCreateFromDate}
       />
     );
   }
@@ -975,8 +1020,8 @@ function EventList({
         range={range}
         weatherByDate={weatherByDate}
         onEdit={onEdit}
-        onDelete={onDelete}
         editingId={editingId}
+        onCreateFromDate={onCreateFromDate}
       />
     );
   }
@@ -988,34 +1033,23 @@ function EventList({
           {events.map((event) => {
             const recurrenceNote = describeRecurrence(event.recurrence?.[0]);
             return (
-              <li key={event.id} className="rounded-xl border border-white/5 bg-slate-900/70 p-2.5">
-                <p className="text-sm font-semibold text-white">{event.summary || "(untitled)"}</p>
-                <p className="text-sm text-slate-300">
-                  {formatEventTime(event.start)} – {formatEventTime(event.end)}
-                </p>
-                {event.description && (
-                  <p className="mt-1 overflow-hidden text-ellipsis text-sm text-slate-400">{event.description}</p>
-                )}
-                {event.location && <p className="text-sm text-slate-500">{event.location}</p>}
-                {recurrenceNote && <p className="text-xs text-slate-400">{recurrenceNote}</p>}
-                <div className="mt-1.5 flex gap-2 text-xs font-semibold uppercase tracking-wide">
-                  <button
-                    type="button"
-                    className="text-sky-300 hover:text-white"
-                    onClick={() => onEdit(event)}
-                    disabled={!event.id}
-                  >
-                    {editingId === event.id ? "Editing…" : "Edit"}
-                  </button>
+              <li key={event.id}>
                 <button
                   type="button"
-                  className="text-red-300 hover:text-red-200"
-                  onClick={() => onDelete(event)}
+                  className="w-full rounded-xl border border-white/5 bg-slate-900/70 p-3 text-left transition hover:border-white/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+                  onClick={() => onEdit(event)}
                   disabled={!event.id}
                 >
-                    Delete
-                  </button>
-                </div>
+                  <p className="text-base font-semibold text-white">{event.summary || "(untitled)"}</p>
+                  <p className="text-sm text-slate-300">
+                    {formatEventTime(event.start)} — {formatEventTime(event.end)}
+                  </p>
+                  {event.description && (
+                    <p className="mt-1 overflow-hidden text-ellipsis text-sm text-slate-400">{event.description}</p>
+                  )}
+                  {event.location && <p className="text-sm text-slate-500">{event.location}</p>}
+                  {recurrenceNote && <p className="text-xs text-slate-400">{recurrenceNote}</p>}
+                </button>
               </li>
             );
           })}
@@ -1033,15 +1067,15 @@ function CalendarWeekGrid({
   range,
   weatherByDate,
   onEdit,
-  onDelete,
   editingId,
+  onCreateFromDate,
 }: {
   events: CalendarEvent[];
   range: { start: Date; end: Date };
   weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
-  onDelete: (event: CalendarEvent) => void;
   editingId: string | null;
+  onCreateFromDate?: (date: Date) => void;
 }) {
   const days = eachDayOfInterval({ start: range.start, end: range.end });
   const weekHasWeather = days.some((day) => Boolean(getWeatherForDate(weatherByDate, day)));
@@ -1067,7 +1101,8 @@ function CalendarWeekGrid({
             return (
               <div
                 key={day.toISOString()}
-                className={`flex min-h-0 flex-col rounded-xl border p-1.5 transition border-white/5 bg-slate-950/50`}
+                className={`flex min-h-0 flex-col rounded-xl border p-1.5 transition border-white/5 bg-slate-950/50 cursor-pointer`}
+                onClick={() => onCreateFromDate?.(day)}
               >
                 <div className="flex items-center justify-between border-b border-white/5 pb-0.5">
                   <p className="text-sm font-semibold text-white">{format(day, "EEE")}</p>
@@ -1080,36 +1115,26 @@ function CalendarWeekGrid({
                 </div>
                 <div className="mt-1.5 flex-1 space-y-1.5 overflow-hidden">
                   {dayEvents.length ? (
-                    dayEvents.map((event) => {
-                      const recurrenceNote = describeRecurrence(event.recurrence?.[0]);
+                    dayEvents.map((calendarEvent) => {
+                      const recurrenceNote = describeRecurrence(calendarEvent.recurrence?.[0]);
                       return (
-                    <div
-                      key={event.id}
-                      className="space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-1.5 text-xs text-white/90"
-                    >
-                          <p className="font-semibold">{event.summary || "(untitled)"}</p>
-                      <p className="text-[0.6rem] uppercase tracking-wide text-slate-200">{formatEventRange(event)}</p>
-                      {event.location && <p className="text-[0.6rem] text-slate-300">{event.location}</p>}
-                      {recurrenceNote && <p className="text-[0.6rem] text-slate-200/80">{recurrenceNote}</p>}
-                      <div className="flex gap-1.5 text-[0.6rem] font-semibold uppercase">
-                            <button
-                              type="button"
-                              className="text-white hover:text-slate-200"
-                              onClick={() => onEdit(event)}
-                              disabled={!event.id}
-                            >
-                              {editingId === event.id ? "Editing…" : "Edit"}
-                            </button>
                         <button
                           type="button"
-                          className="text-red-200 hover:text-red-100"
-                          onClick={() => onDelete(event)}
-                          disabled={!event.id}
+                          key={calendarEvent.id}
+                          onClick={(clickEvent) => {
+                            clickEvent.stopPropagation();
+                            onEdit(calendarEvent);
+                          }}
+                          disabled={!calendarEvent.id}
+                          className="w-full space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-2 text-left text-xs text-white/90 transition hover:border-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 disabled:opacity-60"
                         >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
+                          <p className="font-semibold">{calendarEvent.summary || "(untitled)"}</p>
+                          <p className="text-[0.6rem] uppercase tracking-wide text-slate-200">
+                            {formatEventRange(calendarEvent)}
+                          </p>
+                          {calendarEvent.location && <p className="text-[0.6rem] text-slate-300">{calendarEvent.location}</p>}
+                          {recurrenceNote && <p className="text-[0.6rem] text-slate-200/80">{recurrenceNote}</p>}
+                        </button>
                       );
                     })
                   ) : (
@@ -1145,16 +1170,16 @@ function CalendarMonthGrid({
   currentMonthStart,
   weatherByDate,
   onEdit,
-  onDelete,
   editingId,
+  onCreateFromDate,
 }: {
   events: CalendarEvent[];
   range: { start: Date; end: Date };
   currentMonthStart: Date;
   weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
-  onDelete: (event: CalendarEvent) => void;
   editingId: string | null;
+  onCreateFromDate?: (date: Date) => void;
 }) {
   const days = eachDayOfInterval({ start: range.start, end: range.end });
   const weeks: Date[][] = [];
@@ -1162,6 +1187,7 @@ function CalendarMonthGrid({
   for (let index = 0; index < days.length; index += 7) {
     weeks.push(days.slice(index, index + 7));
   }
+  const maxEventsPerDay = weeks.length >= 6 ? 3 : 4;
 
   return (
     <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-white/5 bg-slate-900/60 p-2.5">
@@ -1172,9 +1198,16 @@ function CalendarMonthGrid({
           </span>
         ))}
       </div>
-      <div className="mt-2 flex-1 overflow-auto space-y-1.5 pr-1">
+      <div
+        className="mt-2 flex-1 min-h-0 grid gap-1.5"
+        style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(0, 1fr))` }}
+      >
         {weeks.map((week, rowIndex) => (
-          <div key={rowIndex} className="grid grid-cols-7 gap-1.5">
+          <div
+            key={rowIndex}
+            className="grid min-h-0 grid-cols-7 gap-1.5"
+            style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}
+          >
             {week.map((day) => {
               const dayEvents = events
                 .filter((event) => {
@@ -1186,7 +1219,7 @@ function CalendarMonthGrid({
                   const second = getEventDate(b.start)?.getTime() ?? 0;
                   return first - second;
                 });
-              const preview = dayEvents.slice(0, 2);
+              const preview = dayEvents.slice(0, maxEventsPerDay);
               const remaining = dayEvents.length - preview.length;
               const inCurrentMonth = isSameMonth(day, currentMonthStart);
               const today = isToday(day);
@@ -1194,11 +1227,12 @@ function CalendarMonthGrid({
               return (
                 <div
                   key={day.toISOString()}
-                  className={`flex h-[115px] flex-col rounded-xl border p-1 overflow-hidden ${
+                  className={`flex min-h-0 flex-col rounded-xl border p-2 transition-colors cursor-pointer ${
                     today
-                      ? "border-sky-400/70 bg-slate-950/70"
+                      ? "border-sky-400/70 bg-slate-950/70 shadow-lg shadow-sky-900/30"
                       : "border-white/5 bg-slate-950/40"
                   } ${inCurrentMonth ? "text-white" : "text-slate-500/80"}`}
+                  onClick={() => onCreateFromDate?.(day)}
                 >
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold">{format(day, "d")}</span>
@@ -1206,29 +1240,50 @@ function CalendarMonthGrid({
                       <span className="rounded-full bg-sky-500/30 px-1.5 py-0.5 text-[0.6rem] text-sky-50">Today</span>
                     )}
                   </div>
-                  <div className="mt-1 flex-1 space-y-1 overflow-hidden">
+                  <div className="mt-2 flex-1 min-h-0 space-y-1">
                     {preview.length ? (
-                      preview.map((event) => {
-                        const recurrenceNote = describeRecurrence(event.recurrence?.[0]);
+                      preview.map((calendarEvent) => {
+                        const recurrenceNote = describeRecurrence(calendarEvent.recurrence?.[0]);
+                        const isDisabled = !calendarEvent.id;
                         return (
-                          <div
-                            key={event.id}
-                            className="space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-1 text-[0.58rem] text-white/90"
+                          <button
+                            key={calendarEvent.id ?? `${day.toISOString()}-${calendarEvent.summary ?? "event"}`}
+                            type="button"
+                            onClick={(clickEvent) => {
+                              clickEvent.stopPropagation();
+                              if (!isDisabled) {
+                                onEdit(calendarEvent);
+                              }
+                            }}
+                            disabled={isDisabled}
+                            className={`w-full rounded-xl border px-2.5 py-2 text-left text-white/90 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 ${
+                              editingId === calendarEvent.id
+                                ? "border-sky-400/70 bg-sky-500/20"
+                                : "border-white/10 bg-white/5 hover:border-sky-300/60 hover:bg-sky-400/10 active:scale-[0.99]"
+                            } ${isDisabled ? "cursor-not-allowed opacity-60" : ""}`}
                           >
-                            <p className="font-semibold">{event.summary || "(untitled)"}</p>
-                            <p className="text-[0.6rem] uppercase tracking-wide text-slate-200">
-                              {formatEventRange(event)}
-                            </p>
-                            {recurrenceNote && <p className="text-[0.6rem] text-slate-200/80">{recurrenceNote}</p>}
-                          </div>
+                            <span className="flex items-center gap-2 text-[0.68rem] font-semibold">
+                              <span className="truncate">{calendarEvent.summary || "(untitled)"}</span>
+                              <span className="shrink-0 text-[0.58rem] uppercase tracking-wide text-slate-200">
+                                {formatEventRange(calendarEvent)}
+                              </span>
+                            </span>
+                            {recurrenceNote && (
+                              <span className="mt-1 text-[0.52rem] uppercase tracking-[0.2em] text-slate-300">
+                                {recurrenceNote}
+                              </span>
+                            )}
+                          </button>
                         );
                       })
                     ) : (
-                      <p className="text-xs text-slate-500">—</p>
+                      <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-white/10 text-[0.65rem] text-slate-500">
+                        No events
+                      </div>
                     )}
                   </div>
                   {remaining > 0 && (
-                    <p className="pt-1 text-[0.55rem] uppercase tracking-[0.3em] text-slate-500">+{remaining} more</p>
+                    <p className="pt-1 text-[0.55rem] uppercase tracking-[0.3em] text-slate-400">+{remaining} more</p>
                   )}
                 </div>
               );

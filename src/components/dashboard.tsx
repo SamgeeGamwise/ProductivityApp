@@ -11,7 +11,7 @@ export function Dashboard() {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
   return (
-    <div className="h-dvh w-full overflow-hidden bg-slate-950 bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.25),_transparent_60%)] p-4 text-slate-100">
+    <div className="h-dvh w-screen max-w-none overflow-hidden bg-slate-950 bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.25),_transparent_60%)] p-4 text-slate-100">
       <div className="flex h-full w-full flex-col gap-4 overflow-hidden">
         <Link
           href="/settings"

@@ -61,7 +61,7 @@ export async function listEvents(params: ListEventsParams) {
     timeMax: params.timeMax,
     singleEvents: true,
     orderBy: "startTime",
-    maxResults: params.maxResults ?? 25,
+    maxResults: params.maxResults ?? 250,
   });
 
   return response.data.items ?? [];
