@@ -27,7 +27,12 @@ export function TodoModule() {
     const dueISO = task.dueDate
       ? buildDueDate(task.dueDate, task.dueTime)
       : undefined;
-    add(task.title, task.details || undefined, dueISO ? { dueDate: dueISO } : undefined);
+    const hasTime = Boolean(task.dueTime);
+    add(
+      task.title,
+      task.details || undefined,
+      dueISO ? { dueDate: dueISO, hasTime } : undefined
+    );
     setTask({ title: "", details: "", dueDate: "", dueTime: "" });
     setIsModalOpen(false);
   };

@@ -11,7 +11,7 @@ export function Dashboard() {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
   return (
-    <div className="h-dvh w-screen max-w-none overflow-hidden bg-slate-950 bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.25),_transparent_60%)] p-4 text-slate-100">
+    <div className="h-dvh w-full max-w-none overflow-hidden bg-slate-950 bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.25),_transparent_60%)] p-4 text-slate-100">
       <div className="flex h-full w-full flex-col gap-4 overflow-hidden">
         <Link
           href="/settings"
@@ -19,24 +19,26 @@ export function Dashboard() {
         >
           Settings
         </Link>
-        <main className="flex-1 min-h-0 overflow-hidden">
+        <main className="flex-1 min-h-0 w-full overflow-hidden">
           {calendarExpanded ? (
-            <div className="flex h-full min-h-0 flex-col">
+            <div className="flex h-full min-h-0 w-full flex-col">
               <CalendarModule expanded onToggleExpand={() => setCalendarExpanded(false)} />
             </div>
           ) : (
-            <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[1.5fr_1fr]">
-              <div className="flex min-h-0 flex-col gap-4">
-                <WeatherModule />
-                <div className="flex min-h-0 flex-1">
+            <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+              <div className="flex min-h-0 w-full flex-col gap-4">
+                <div className="flex w-full">
+                  <WeatherModule />
+                </div>
+                <div className="flex min-h-0 w-full flex-1">
                   <CalendarModule onToggleExpand={() => setCalendarExpanded(true)} />
                 </div>
               </div>
-              <div className="grid min-h-0 grid-rows-2 gap-4">
-                <div className="flex min-h-0">
+              <div className="flex min-h-0 w-full flex-col gap-4">
+                <div className="flex min-h-0 w-full flex-1">
                   <TodoModule />
                 </div>
-                <div className="flex min-h-0">
+                <div className="flex min-h-0 w-full flex-1">
                   <ChoresModule />
                 </div>
               </div>

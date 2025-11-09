@@ -21,7 +21,7 @@ export function ModuleCard({
   return (
     <section
       className={clsx(
-        "flex h-full min-h-0 flex-col rounded-2xl border border-white/10 bg-slate-900/70 p-4 shadow-xl shadow-slate-950/40",
+        "flex h-full w-full min-h-0 flex-col rounded-2xl border border-white/10 bg-slate-900/70 p-4 shadow-xl shadow-slate-950/40",
         className
       )}
     >
