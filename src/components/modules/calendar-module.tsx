@@ -396,6 +396,10 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     setIsDeleting(false);
   };
 
+  const onShowDayDetail = useCallback((date: Date) => {
+    setActiveDayDetail(date);
+  }, []);
+
   const closeDayDetail = useCallback(() => {
     setActiveDayDetail(null);
   }, []);
@@ -711,7 +715,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
             onCreateFromDate={openComposerForDate}
             todos={pendingTodos}
             chores={pendingChores}
-            onShowDayDetail={setActiveDayDetail}
+            onShowDayDetail={onShowDayDetail}
           />
         </div>
       </div>
@@ -754,12 +758,21 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                   {dayDetailEvents.map((event) => {
                     const recurrenceNote = describeRecurrence(event.recurrence?.[0]);
                     return (
-                      <li key={event.id} className="rounded-2xl border border-white/15 bg-slate-900/70 p-4">
-                        <p className="text-base font-semibold">{event.summary || "(untitled)"}</p>
-                        <p className="text-sm text-slate-300">{formatEventRange(event)}</p>
-                        {event.description && <p className="mt-1 text-sm text-slate-400">{event.description}</p>}
-                        {event.location && <p className="text-sm text-slate-500">{event.location}</p>}
-                        {recurrenceNote && <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{recurrenceNote}</p>}
+                      <li key={event.id}>
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(event)}
+                          disabled={!event.id}
+                          className="w-full rounded-2xl border border-white/15 bg-slate-900/70 p-4 text-left transition hover:border-white/40 disabled:opacity-60"
+                        >
+                          <p className="text-base font-semibold">{event.summary || "(untitled)"}</p>
+                          <p className="text-sm text-slate-300">{formatEventRange(event)}</p>
+                          {event.description && <p className="mt-1 text-sm text-slate-400">{event.description}</p>}
+                          {event.location && <p className="text-sm text-slate-500">{event.location}</p>}
+                          {recurrenceNote && (
+                            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{recurrenceNote}</p>
+                          )}
+                        </button>
                       </li>
                     );
                   })}
@@ -1201,12 +1214,7 @@ function EventList({
                     const recurrenceNote = describeRecurrence(entry.event.recurrence?.[0]);
                     return (
                       <li key={entry.event.id}>
-                        <button
-                          type="button"
-                          className="w-full rounded-xl border border-white/5 bg-slate-900/70 p-3 text-left transition hover:border-white/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
-                          onClick={() => onEdit(entry.event)}
-                          disabled={!entry.event.id}
-                        >
+                        <div className="w-full rounded-xl border border-white/5 bg-slate-900/70 p-3 text-left">
                           <p className="text-base font-semibold text-white">{entry.event.summary || "(untitled)"}</p>
                           <p className="text-sm text-slate-300">
                             {formatEventTime(entry.event.start)} – {formatEventTime(entry.event.end)}
@@ -1218,7 +1226,7 @@ function EventList({
                           )}
                           {entry.event.location && <p className="text-sm text-slate-500">{entry.event.location}</p>}
                           {recurrenceNote && <p className="text-xs text-slate-400">{recurrenceNote}</p>}
-                        </button>
+                        </div>
                       </li>
                     );
                   }
@@ -1330,15 +1338,9 @@ function CalendarWeekGrid({
                     dayEvents.map((calendarEvent) => {
                       const recurrenceNote = describeRecurrence(calendarEvent.recurrence?.[0]);
                       return (
-                        <button
-                          type="button"
+                        <div
                           key={calendarEvent.id}
-                          onClick={(clickEvent) => {
-                            clickEvent.stopPropagation();
-                            onEdit(calendarEvent);
-                          }}
-                          disabled={!calendarEvent.id}
-                          className="w-full space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-2 text-left text-xs text-white/90 transition hover:border-sky-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 disabled:opacity-60"
+                          className="w-full space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-2 text-left text-xs text-white/90"
                         >
                           <p className="font-semibold">{calendarEvent.summary || "(untitled)"}</p>
                           <p className="text-[0.6rem] uppercase tracking-wide text-slate-200">
@@ -1346,7 +1348,7 @@ function CalendarWeekGrid({
                           </p>
                           {calendarEvent.location && <p className="text-[0.6rem] text-slate-300">{calendarEvent.location}</p>}
                           {recurrenceNote && <p className="text-[0.6rem] text-slate-200/80">{recurrenceNote}</p>}
-                        </button>
+                        </div>
                       );
                     })
                   ) : (
@@ -1468,21 +1470,13 @@ function CalendarMonthGrid({
                           const recurrenceNote = describeRecurrence(calendarEvent.recurrence?.[0]);
                           const isDisabled = !calendarEvent.id;
                           return (
-                            <button
+                            <div
                               key={calendarEvent.id ?? `${day.toISOString()}-${calendarEvent.summary ?? "event"}`}
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (!isDisabled) {
-                                  onEdit(calendarEvent);
-                                }
-                              }}
-                              disabled={isDisabled}
-                              className={`w-full rounded-lg border px-2 py-1.5 text-left text-white transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 ${
+                              className={`w-full rounded-lg border px-2 py-1.5 text-left text-white ${
                                 editingId === calendarEvent.id
                                   ? "border-sky-400/70 bg-sky-500/20"
-                                  : "border-white/10 bg-white/5 hover:border-sky-300/60 hover:bg-sky-400/10 active:scale-[0.99]"
-                              } ${isDisabled ? "cursor-not-allowed opacity-60" : ""}`}
+                                  : "border-white/10 bg-white/5"
+                              } ${isDisabled ? "opacity-60" : ""}`}
                             >
                               <span className="flex items-center gap-1.5 text-[0.75rem] font-semibold">
                                 <span className="truncate">{calendarEvent.summary || "(untitled)"}</span>
@@ -1495,7 +1489,7 @@ function CalendarMonthGrid({
                                   {recurrenceNote}
                                 </span>
                               )}
-                            </button>
+                            </div>
                           );
                         })
                       ) : (
