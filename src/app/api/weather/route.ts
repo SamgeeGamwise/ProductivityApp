@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     url.searchParams.set("latitude", lat);
     url.searchParams.set("longitude", lon);
     url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,precipitation_probability_max");
+    url.searchParams.set("current_weather", "true");
     url.searchParams.set("timezone", "auto");
     url.searchParams.set("forecast_days", days.toString());
 
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
         longitude: lon,
       },
       daily: data.daily,
+      current_weather: data.current_weather,
     });
   } catch (error) {
     console.error("Weather API error", error);

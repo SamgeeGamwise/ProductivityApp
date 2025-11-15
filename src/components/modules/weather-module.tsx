@@ -4,13 +4,12 @@ import { useWeather } from "@/hooks/useWeather";
 import { format } from "date-fns";
 
 export function WeatherModule() {
-  const { daily, isLoading, error } = useWeather(4);
+  const { daily, current, isLoading, error } = useWeather(4);
   const todayKey = format(new Date(), "yyyy-MM-dd");
   const todayIndex = daily.findIndex((day) => day.date === todayKey);
   const orderedDaily =
     todayIndex > 0 ? [...daily.slice(todayIndex), ...daily.slice(0, todayIndex)] : daily;
   const displayedDays = orderedDaily.slice(0, 4);
-  const today = displayedDays[0];
 
   return (
     <section className="w-full rounded-2xl border border-white/10 bg-slate-900/50 p-4 text-sm text-white/80 shadow-inner">
@@ -19,12 +18,17 @@ export function WeatherModule() {
           <p className="text-xs uppercase tracking-[0.3em] text-white/60">Weather</p>
           <p className="text-lg font-semibold text-white">Today</p>
         </div>
-        {today && (
-          <div className="text-right text-white">
-            <p className="text-2xl font-semibold">{today.max}{"\u00B0F"}</p>
-            <p className="text-xs text-white/70">Low {today.min}{"\u00B0F"}</p>
-          </div>
-        )}
+        <div className="text-right text-white">
+          <p className="text-[0.6rem] uppercase tracking-[0.3em] text-white/60">Now</p>
+          {current ? (
+            <>
+              <p className="text-2xl font-semibold">{current.temperature}{"\u00B0F"}</p>
+              <p className="text-xs text-white/70">{current.description}</p>
+            </>
+          ) : (
+            <p className="text-xs text-white/60">No current data</p>
+          )}
+        </div>
       </div>
       {isLoading && <p className="mt-2 text-xs text-white/60">Loading forecast...</p>}
       {error && <p className="mt-2 text-xs text-red-300">{error}</p>}

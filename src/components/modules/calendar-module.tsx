@@ -63,6 +63,7 @@ const MINUTE_OPTIONS = ["00", "15", "30", "45"];
 const MERIDIEMS: Array<"AM" | "PM"> = ["AM", "PM"];
 const AUTO_EVENT_DURATION_MS = 60 * 60 * 1000;
 const DEFAULT_EVENT_START_HOUR = 9;
+const EVENT_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
 function createDefaultEvent(): NewEventState {
   const start = nextRoundedDate();
@@ -283,7 +284,18 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   }, [range.end, range.start]);
 
   useEffect(() => {
-    loadEvents();
+    let cancelled = false;
+    const refresh = () => {
+      if (!cancelled) {
+        void loadEvents();
+      }
+    };
+    refresh();
+    const intervalId = window.setInterval(refresh, EVENT_REFRESH_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, [loadEvents]);
 
   const resetForm = () => {
@@ -502,7 +514,6 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     });
   };
 
-  const dashboardWeather = !expanded ? getWeatherForDate(weatherByDate, range.start) : null;
   const pendingTodos = useMemo(() => todoItems.filter((item) => !item.done), [todoItems]);
   const pendingChores = useMemo(() => choreItems.filter((item) => !item.done), [choreItems]);
   const dayDetailEvents = useMemo(() => {
