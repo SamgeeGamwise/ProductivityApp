@@ -500,10 +500,6 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     }
   };
 
-  const handleManualRefresh = useCallback(() => {
-    void loadEvents();
-  }, [loadEvents]);
-
   const handleAllDayToggle = (checked: boolean) => {
     setNewEvent((prev) => {
       if (checked) {
@@ -656,14 +652,6 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 <span>Add</span>
               </span>
             </button>
-            <button
-              type="button"
-              onClick={handleManualRefresh}
-              disabled={isLoading}
-              className="rounded-full border border-[#365091] bg-[#0f1c38] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#e6edff] transition hover:border-[#6ba1ff] hover:bg-[#18274d] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isLoading ? "Refreshing…" : "Refresh"}
-            </button>
             {onToggleExpand && (
               <button
                 type="button"
@@ -740,13 +728,9 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
         <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-100">
           <p className="text-sm font-semibold text-red-100">Unable to load calendar events</p>
           <p className="text-red-200">{error}</p>
-          <button
-            type="button"
-            onClick={handleManualRefresh}
-            className="mt-2 rounded-full border border-red-200/50 px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.3em] text-red-50 transition hover:border-red-100"
-          >
-            Try again
-          </button>
+          <p className="mt-1 text-[0.6rem] uppercase tracking-[0.3em] text-red-200/80">
+            Auto-refresh will retry shortly.
+          </p>
         </div>
       )}
 
@@ -1265,7 +1249,7 @@ function EventList({
               <p className="text-xs text-[#7d8fca]">{format(date, "MMM d")}</p>
             </div>
             {combinedEntries.length ? (
-              <ul className="flex-1 space-y-2 overflow-auto pr-1 text-sm">
+              <ul className="flex-1 space-y-2 overflow-auto pr-1 text-sm max-h-80">
                 {combinedEntries.map((entry) => {
                   if (entry.type === "event") {
                     const recurrenceNote = describeRecurrence(entry.event.recurrence?.[0]);

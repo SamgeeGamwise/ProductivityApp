@@ -29,12 +29,16 @@ body {
   overflow: hidden;
 }
 
-.calendar-field::-webkit-calendar-picker-indicator {
-  filter: invert(70%) sepia(57%) saturate(411%) hue-rotate(165deg) brightness(110%);
+.calendar-field::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(100%) brightness(180%);
   cursor: pointer;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
-.calendar-field::-moz-focus-inner {
+.calendar-field::-moz-focus-inner,
+input[type="date"]::-moz-focus-inner,
+input[type="time"]::-moz-focus-inner {
   border: 0;
 }

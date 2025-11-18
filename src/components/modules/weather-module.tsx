@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { useErrorLog } from "@/context/error-log";
 
 export function WeatherModule() {
-  const { daily, current, isLoading, error, reload, lastUpdated } = useWeather(4);
+  const { daily, current, isLoading, error, lastUpdated } = useWeather(4);
   const { logError } = useErrorLog();
   const todayKey = format(new Date(), "yyyy-MM-dd");
   const todayIndex = daily.findIndex((day) => day.date === todayKey);
@@ -41,32 +41,19 @@ export function WeatherModule() {
                 <p className="text-xs text-[#94a8dd]">No current data</p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={reload}
-              disabled={isLoading}
-              className="rounded-full border border-[#38508f] bg-[#0f1c38] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-[#6ba1ff] hover:bg-[#1d2b4d] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isLoading ? "Refreshing…" : "Refresh"}
-            </button>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-between text-[0.65rem] uppercase tracking-[0.3em] text-[#8ea2dc]">
           <span>Last updated {lastUpdatedLabel ? lastUpdatedLabel : "—"}</span>
-          {!isLoading && !error && <span>Auto-refresh hourly</span>}
         </div>
       </div>
       {error && (
         <div className="mt-3 rounded-2xl border border-red-400/40 bg-red-500/10 p-3 text-xs text-red-100">
           <p className="text-sm font-semibold">Unable to load weather</p>
           <p className="text-red-200">{error}</p>
-          <button
-            type="button"
-            onClick={reload}
-            className="mt-2 rounded-full border border-red-200/50 px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.3em] text-red-50 transition hover:border-red-100"
-          >
-            Try again
-          </button>
+          <p className="mt-2 text-[0.6rem] uppercase tracking-[0.3em] text-red-100/80">
+            Auto-refresh will retry soon.
+          </p>
         </div>
       )}
       {displayedDays.length > 0 && (
