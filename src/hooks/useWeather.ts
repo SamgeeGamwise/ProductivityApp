@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 export type WeatherDay = {
   date: string;
@@ -36,6 +36,8 @@ export function useWeather(days = 7) {
   const [current, setCurrent] = useState<WeatherCurrent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,17 +47,29 @@ export function useWeather(days = 7) {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/weather?days=${days}`);
-        const payload: WeatherApiResponse = await response.json();
-        if (!response.ok) throw new Error(payload.error || "Unable to load weather data");
+        const response = await fetch(`/api/weather?days=${days}`, { cache: "no-store" });
+        const payloadText = await response.text();
+        let payload: WeatherApiResponse | undefined;
+        if (payloadText) {
+          try {
+            payload = JSON.parse(payloadText);
+          } catch {
+            throw new Error(`Weather API returned invalid data (HTTP ${response.status})`);
+          }
+        }
+        if (!response.ok) {
+          const reason = payload?.error || response.statusText || "Unable to load weather data";
+          throw new Error(`${reason} (HTTP ${response.status})`);
+        }
         const parsed = parseWeather(payload);
         if (!cancelled) {
           setDaily(parsed.daily);
           setCurrent(parsed.current);
+          setLastUpdated(Date.now());
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Unexpected error");
+          setError(err instanceof Error ? err.message : "Unexpected error loading weather");
         }
       } finally {
         if (!cancelled) {
@@ -75,9 +89,13 @@ export function useWeather(days = 7) {
         clearInterval(intervalId);
       }
     };
-  }, [days]);
+  }, [days, reloadToken]);
 
-  return { daily, current, isLoading, error };
+  const reload = useCallback(() => {
+    setReloadToken((token) => token + 1);
+  }, []);
+
+  return { daily, current, isLoading, error, lastUpdated, reload };
 }
 
 type ParsedWeather = {

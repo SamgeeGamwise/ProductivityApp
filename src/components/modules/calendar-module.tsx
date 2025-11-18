@@ -22,6 +22,7 @@ import {
 } from "date-fns";
 import { useWeather, WeatherDay } from "@/hooks/useWeather";
 import { ListItem, usePersistentList } from "@/hooks/usePersistentList";
+import { useErrorLog } from "@/context/error-log";
 
 type CalendarEvent = {
   id: string;
@@ -213,7 +214,9 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [activeEditEvent, setActiveEditEvent] = useState<CalendarEvent | null>(null);
   const [activeDayDetail, setActiveDayDetail] = useState<Date | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
   const { daily: weatherDaily } = useWeather(14);
+  const { logError } = useErrorLog();
   const { items: todoItems } = usePersistentList("todo-items");
   const { items: choreItems } = usePersistentList("chore-items");
   const weatherByDate = useMemo(() => {
@@ -271,17 +274,21 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
         timeMin: range.start.toISOString(),
         timeMax: range.end.toISOString(),
       });
-      const response = await fetch(`/api/calendar/events?${params.toString()}`);
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Unable to load events");
-      setNeedsSetup(Boolean(payload.needsSetup));
-      setEvents(payload.events || []);
+      const response = await fetch(`/api/calendar/events?${params.toString()}`, { cache: "no-store" });
+      const payload = await parseJsonPayload(response, "Calendar events");
+      if (!response.ok) {
+        throw new Error(buildHttpErrorMessage(response, payload, "Unable to load events"));
+      }
+      setNeedsSetup(Boolean(payload?.needsSetup));
+      setEvents(Array.isArray(payload?.events) ? payload.events : []);
+      setLastRefreshed(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error");
+      logError("Calendar events", err);
     } finally {
       setIsLoading(false);
     }
-  }, [range.end, range.start]);
+  }, [logError, range.end, range.start]);
 
   useEffect(() => {
     let cancelled = false;
@@ -357,6 +364,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       setIsComposerModalOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error");
+      logError(editingId ? "Calendar event update" : "Calendar event create", err);
     }
   };
 
@@ -456,6 +464,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       loadEvents();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Unexpected error");
+      logError("Calendar delete", err);
     } finally {
       setIsDeleting(false);
     }
@@ -490,6 +499,10 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       setWeekOffset(0);
     }
   };
+
+  const handleManualRefresh = useCallback(() => {
+    void loadEvents();
+  }, [loadEvents]);
 
   const handleAllDayToggle = (checked: boolean) => {
     setNewEvent((prev) => {
@@ -530,6 +543,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       });
   }, [activeDayDetail, events]);
   const dayDetailLabel = activeDayDetail ? format(activeDayDetail, "EEEE, MMM d") : "";
+  const lastUpdatedLabel = lastRefreshed ? format(new Date(lastRefreshed), "MMM d, h:mma") : null;
 
   const handleAddFromDetail = useCallback(() => {
     if (!activeDayDetail) return;
@@ -618,11 +632,11 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
     <>
       <ModuleCard
       title="Calendar"
-      accent="from-sky-500/40 to-blue-500/10"
-      className={expanded ? "min-h-0 w-full text-sm" : "min-h-0 w-full text-xs"}
+      accent="from-[#3b82f6]/40 via-[#1f2547]/50 to-[#050912]"
+      className={`rounded-3xl border border-[#1f2a44] bg-gradient-to-br from-[#040814] via-[#060c18] to-[#02040a] text-[#e6eeff] ${expanded ? "min-h-0 w-full text-sm" : "min-h-0 w-full text-xs"}`}
       contentClassName={expanded ? "gap-4 overflow-hidden" : "gap-3"}
       actions={
-        <div className="flex w-full flex-col gap-3 text-sm text-white/80 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex w-full flex-col gap-3 text-sm text-[#d9e5ff] lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -630,39 +644,47 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 resetForm();
                 setIsComposerModalOpen(true);
               }}
-              className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-white/60"
+              className="rounded-full border border-[#3c5aa8] bg-[#0f1a33] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#f0f5ff] transition hover:border-[#6ba1ff] hover:bg-[#182442]"
             >
               <span className="inline-flex items-center gap-2">
                 <span
                   aria-hidden="true"
-                  className="flex h-4 w-4 items-center justify-center rounded-full bg-white/20 text-[0.65rem] font-bold leading-none text-white"
+                  className="flex h-4 w-4 items-center justify-center rounded-full bg-[#6ba1ff]/30 text-[0.65rem] font-bold leading-none text-white"
                 >
                   +
                 </span>
                 <span>Add</span>
               </span>
             </button>
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isLoading}
+              className="rounded-full border border-[#365091] bg-[#0f1c38] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#e6edff] transition hover:border-[#6ba1ff] hover:bg-[#18274d] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isLoading ? "Refreshing…" : "Refresh"}
+            </button>
             {onToggleExpand && (
               <button
                 type="button"
                 onClick={onToggleExpand}
-                className="rounded-full border border-white/20 px-6 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-white/60"
+                className="rounded-full border border-[#3b4f7a] bg-[#0a1430] px-6 py-2 text-xs font-semibold uppercase tracking-wide text-[#e6ecff] transition hover:border-[#5c7ddc]"
               >
                 {expanded ? "Dashboard view" : "Calendar view"}
               </button>
             )}
-            <p className="text-sm font-semibold text-white/80">{displayLabel}</p>
+            <p className="text-sm font-semibold text-[#9fb4ff]">{displayLabel}</p>
           </div>
 
           {expanded && (
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex rounded-full border border-white/20 p-0.5">
+              <div className="flex rounded-full border border-[#2d3c63] bg-[#0f1934] p-0.5">
                 {(["week", "month"] as Array<"week" | "month">).map((mode) => (
                   <button
                     key={mode}
                     type="button"
                     className={`rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition ${
-                      viewMode === mode ? "bg-white/25 text-white" : "text-white/60 hover:text-white"
+                      viewMode === mode ? "bg-[#1b2a4a] text-white shadow-inner shadow-[#1e3a8a]/40" : "text-[#95a8db] hover:text-white"
                     }`}
                     onClick={() => setViewMode(mode)}
                   >
@@ -670,11 +692,11 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-white/20 px-2 py-1 text-xs uppercase tracking-wide text-white/70">
+              <div className="flex items-center gap-2 rounded-full border border-[#2a3454] bg-[#0f1a35] px-2 py-1 text-xs uppercase tracking-wide text-[#d3ddff]">
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-lg text-white transition hover:bg-white/30"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-[#192749] text-lg text-white transition hover:bg-[#22345f]"
                   aria-label="Previous period"
                 >
                   ‹
@@ -682,14 +704,14 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 <button
                   type="button"
                   onClick={handleReset}
-                  className="rounded-full bg-white/5 px-3 py-1 text-white transition hover:bg-white/20"
+                  className="rounded-full bg-[#1e2c4e] px-3 py-1 text-white transition hover:bg-[#2a3d68]"
                 >
                   Jump to today
                 </button>
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-lg text-white transition hover:bg-white/30"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-[#192749] text-lg text-white transition hover:bg-[#22345f]"
                   aria-label="Next period"
                 >
                   ›
@@ -700,15 +722,33 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
         </div>
       }
     >
-      {isLoading && <span className="mb-2 text-xs text-slate-400">Refreshing…</span>}
+      <div className="mb-2 text-xs text-[#a7baf6]">
+        {isLoading
+          ? "Refreshing…"
+          : lastUpdatedLabel
+            ? `Last updated ${lastUpdatedLabel}`
+            : "Waiting for first sync…"}
+      </div>
 
       {needsSetup && (
-        <p className="mb-4 rounded-lg border border-yellow-400/40 bg-yellow-400/10 p-3 text-xs text-yellow-100">
+        <p className="mb-4 rounded-2xl border border-[#f4c95d]/40 bg-[#2b1d05] p-3 text-xs text-[#ffe9b0]">
           Calendar access is not configured yet. Add your Google service account secrets to <code>.env.local</code> (see README) to enable sync.
         </p>
       )}
 
-      {error && <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{error}</p>}
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-100">
+          <p className="text-sm font-semibold text-red-100">Unable to load calendar events</p>
+          <p className="text-red-200">{error}</p>
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            className="mt-2 rounded-full border border-red-200/50 px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.3em] text-red-50 transition hover:border-red-100"
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex min-h-0 flex-1">
@@ -740,24 +780,24 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
             }
           }}
         >
-          <div className="w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-950/90 p-6 text-sm text-white shadow-2xl shadow-black/60">
+          <div className="w-full max-w-2xl rounded-3xl border border-[#252f4d] bg-[#050a16]/95 p-6 text-sm text-white shadow-2xl shadow-black/70">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Day details</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-[#7c8cbc]">Day details</p>
                 <h3 className="text-2xl font-semibold text-white">{dayDetailLabel}</h3>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleAddFromDetail}
-                  className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-white/60"
+                  className="rounded-full border border-[#3e5692] bg-[#101a31] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:border-[#6da5ff]"
                 >
                   Add event
                 </button>
                 <button
                   type="button"
                   onClick={closeDayDetail}
-                  className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300 transition hover:border-white/60 hover:text-white"
+                  className="rounded-full border border-[#384769] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#c7d4ff] transition hover:border-[#6da5ff] hover:text-white"
                 >
                   Close
                 </button>
@@ -774,14 +814,14 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                           type="button"
                           onClick={() => handleEdit(event)}
                           disabled={!event.id}
-                          className="w-full rounded-2xl border border-white/15 bg-slate-900/70 p-4 text-left transition hover:border-white/40 disabled:opacity-60"
+                          className="w-full rounded-2xl border border-[#2d3c60] bg-[#0b152b] p-4 text-left transition hover:border-[#5f7fd9] disabled:opacity-60"
                         >
-                          <p className="text-base font-semibold">{event.summary || "(untitled)"}</p>
-                          <p className="text-sm text-slate-300">{formatEventRange(event)}</p>
-                          {event.description && <p className="mt-1 text-sm text-slate-400">{event.description}</p>}
-                          {event.location && <p className="text-sm text-slate-500">{event.location}</p>}
+                          <p className="text-base font-semibold text-white">{event.summary || "(untitled)"}</p>
+                          <p className="text-sm text-[#91a4df]">{formatEventRange(event)}</p>
+                          {event.description && <p className="mt-1 text-sm text-[#a7b7eb]">{event.description}</p>}
+                          {event.location && <p className="text-sm text-[#7f94d2]">{event.location}</p>}
                           {recurrenceNote && (
-                            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{recurrenceNote}</p>
+                            <p className="text-xs uppercase tracking-[0.3em] text-[#8191c7]">{recurrenceNote}</p>
                           )}
                         </button>
                       </li>
@@ -789,7 +829,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                   })}
                 </ul>
               ) : (
-                <p className="text-sm text-slate-400">No events scheduled for this day.</p>
+                <p className="text-sm text-[#7d8fbf]">No events scheduled for this day.</p>
               )}
             </div>
           </div>
@@ -804,10 +844,10 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
           }
         }}
       >
-        <div className="relative w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-950/90 p-5 text-sm text-white shadow-2xl shadow-black/60">
+        <div className="relative w-full max-w-2xl rounded-3xl border border-[#252f4d] bg-[#050a16]/95 p-5 text-sm text-white shadow-2xl shadow-black/60">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Calendar</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-[#7d8fca]">Calendar</p>
               <h3 className="text-2xl font-semibold text-white">
                 {isEditing ? (
                   "Edit"
@@ -821,7 +861,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
             <button
               type="button"
               onClick={closeComposer}
-              className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-300 transition hover:border-white/60 hover:text-white"
+              className="rounded-full border border-[#3a4c7a] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#c7d4ff] transition hover:border-[#6ba1ff] hover:text-white"
             >
               Close
             </button>
@@ -830,9 +870,9 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wide text-slate-400">Title</label>
+                <label className="text-xs uppercase tracking-wide text-[#8191c7]">Title</label>
                 <input
-                  className="w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
+                  className="w-full rounded-2xl border border-[#2b3658] bg-[#0d1730] px-3 py-2 text-white outline-none focus:border-[#7aa8ff]"
                   placeholder="Event title"
                   value={newEvent.summary}
                   onChange={(event) => setNewEvent((prev) => ({ ...prev, summary: event.target.value }))}
@@ -840,9 +880,9 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wide text-slate-400">Details</label>
+                <label className="text-xs uppercase tracking-wide text-[#8191c7]">Details</label>
                 <input
-                  className="w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
+                  className="w-full rounded-2xl border border-[#2b3658] bg-[#0d1730] px-3 py-2 text-white outline-none focus:border-[#7aa8ff]"
                   placeholder="Notes or location"
                   value={newEvent.description}
                   onChange={(event) => setNewEvent((prev) => ({ ...prev, description: event.target.value }))}
@@ -852,11 +892,11 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wide text-slate-400">Start</label>
+                <label className="text-xs uppercase tracking-wide text-[#8191c7]">Start</label>
                 <div className="space-y-2">
                   <input
                     type="date"
-                    className="calendar-field w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
+                    className="calendar-field w-full rounded-2xl border border-[#2b3658] bg-[#0d1730] px-3 py-2 text-white outline-none focus:border-[#7aa8ff]"
                     value={newEvent.allDay ? startDateValue : startTimeParts.date}
                     onChange={(event) => updateDateControl("start", { date: event.target.value })}
                     required
@@ -864,7 +904,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                   {!newEvent.allDay && (
                     <div className="grid grid-cols-3 gap-2 sm:max-w-xs">
                       <select
-                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        className="rounded-2xl border border-[#2b3658] bg-[#0d1730] px-2 py-2 text-white outline-none focus:border-[#7aa8ff]"
                         value={startTimeParts.hour}
                         onChange={(event) => updateDateControl("start", { hour: event.target.value })}
                       >
@@ -875,7 +915,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                         ))}
                       </select>
                       <select
-                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        className="rounded-2xl border border-[#2b3658] bg-[#0d1730] px-2 py-2 text-white outline-none focus:border-[#7aa8ff]"
                         value={startTimeParts.minute}
                         onChange={(event) => updateDateControl("start", { minute: event.target.value })}
                       >
@@ -886,7 +926,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                         ))}
                       </select>
                       <select
-                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        className="rounded-2xl border border-[#2b3658] bg-[#0d1730] px-2 py-2 text-white outline-none focus:border-[#7aa8ff]"
                         value={startTimeParts.meridiem}
                         onChange={(event) => updateDateControl("start", { meridiem: event.target.value as "AM" | "PM" })}
                       >
@@ -901,11 +941,11 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wide text-slate-400">End</label>
+                <label className="text-xs uppercase tracking-wide text-[#8191c7]">End</label>
                 <div className="space-y-2">
                   <input
                     type="date"
-                    className="calendar-field w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40"
+                    className="calendar-field w-full rounded-2xl border border-[#2b3658] bg-[#0d1730] px-3 py-2 text-white outline-none focus:border-[#7aa8ff]"
                     value={newEvent.allDay ? endDateValue : endTimeParts.date}
                     onChange={(event) => updateDateControl("end", { date: event.target.value })}
                     required
@@ -913,7 +953,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                   {!newEvent.allDay && (
                     <div className="grid grid-cols-3 gap-2 sm:max-w-xs">
                       <select
-                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        className="rounded-2xl border border-[#2b3658] bg-[#0d1730] px-2 py-2 text-white outline-none focus:border-[#7aa8ff]"
                         value={endTimeParts.hour}
                         onChange={(event) => updateDateControl("end", { hour: event.target.value })}
                       >
@@ -924,7 +964,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                         ))}
                       </select>
                       <select
-                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        className="rounded-2xl border border-[#2b3658] bg-[#0d1730] px-2 py-2 text-white outline-none focus:border-[#7aa8ff]"
                         value={endTimeParts.minute}
                         onChange={(event) => updateDateControl("end", { minute: event.target.value })}
                       >
@@ -935,7 +975,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                         ))}
                       </select>
                       <select
-                        className="rounded-2xl border border-white/15 bg-slate-900/60 px-2 py-2 text-white outline-none focus:border-white/40"
+                        className="rounded-2xl border border-[#2b3658] bg-[#0d1730] px-2 py-2 text-white outline-none focus:border-[#7aa8ff]"
                         value={endTimeParts.meridiem}
                         onChange={(event) => updateDateControl("end", { meridiem: event.target.value as "AM" | "PM" })}
                       >
@@ -956,14 +996,14 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 type="checkbox"
                 checked={newEvent.allDay}
                 onChange={(event) => handleAllDayToggle(event.target.checked)}
-                className="h-4 w-4 rounded border border-white/40 bg-transparent text-sky-400 focus:ring-sky-500"
+                className="h-4 w-4 rounded border border-[#3c4f7e] bg-transparent text-sky-400 focus:ring-sky-500"
               />
               <span>All day event</span>
             </label>
 
             {!isEditing && (
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wide text-slate-400">Repeats</label>
+                <label className="text-xs uppercase tracking-wide text-[#7d8fca]">Repeats</label>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <select
                     value={newEvent.recurrenceFrequency}
@@ -973,7 +1013,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                         recurrenceFrequency: event.target.value as RecurrenceFrequency,
                       }))
                     }
-                    className="w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-white/40 sm:w-48"
+                    className="w-full rounded-2xl border border-[#2b3658] bg-[#0d1730] px-3 py-2 text-white outline-none focus:border-[#7aa8ff] sm:w-48"
                   >
                     <option value="none">Does not repeat</option>
                     <option value="daily">Daily</option>
@@ -981,7 +1021,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                     <option value="monthly">Monthly</option>
                   </select>
                   {newEvent.recurrenceFrequency !== "none" && (
-                    <div className="flex items-center gap-2 text-xs text-slate-200">
+                    <div className="flex items-center gap-2 text-xs text-[#d4e0ff]">
                       <span>Every</span>
                       <input
                         type="number"
@@ -993,7 +1033,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                             recurrenceInterval: Math.max(1, Number(event.target.value) || 1),
                           }))
                         }
-                        className="w-20 rounded-xl border border-white/15 bg-slate-900/60 px-3 py-2 text-sm text-white outline-none focus:border-white/40"
+                        className="w-20 rounded-xl border border-[#2b3658] bg-[#0d1730] px-3 py-2 text-sm text-white outline-none focus:border-[#7aa8ff]"
                       />
                       <span>
                         {recurrenceUnits[newEvent.recurrenceFrequency]}
@@ -1017,7 +1057,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
               )}
               <button
                 type="submit"
-                className="w-full rounded-2xl bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:opacity-60"
+                className="w-full rounded-2xl bg-sky-500 px-4 py-3 text-sm font-semibold text-[#050914] transition hover:bg-sky-400 disabled:opacity-60"
                 disabled={!newEvent.summary || !newEvent.start || !newEvent.end}
               >
                 {isEditing ? "Update event" : "Save event"}
@@ -1030,21 +1070,23 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
     {deleteTarget && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-        <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-950/90 p-5 text-sm text-white shadow-2xl shadow-black/60">
+        <div className="w-full max-w-lg rounded-2xl border border-[#252f4d] bg-[#050a16]/95 p-5 text-sm text-white shadow-2xl shadow-black/60">
           <div className="mb-4">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Delete event</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-[#7d8fca]">Delete event</p>
             <h3 className="text-2xl font-semibold text-white">{deleteTarget.summary || "(untitled)"}</h3>
-            <p className="text-xs text-white/60">
+            <p className="text-xs text-[#9fb4ff]">
               {formatEventTime(deleteTarget.start)} – {formatEventTime(deleteTarget.end)}
             </p>
           </div>
           <div className="space-y-3">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Apply to</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-[#8ca0d8]">Apply to</p>
             <div className="grid gap-2 sm:grid-cols-3">
               <button
                 type="button"
                 className={`rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
-                  deleteScope === "single" ? "border-red-300 bg-red-300/20 text-white" : "border-white/20 text-white/70 hover:border-white/50"
+                  deleteScope === "single"
+                    ? "border-red-300 bg-red-500/10 text-white"
+                    : "border-[#3a4c78] text-[#d0dbff] hover:border-[#6ba1ff]"
                 }`}
                 onClick={() => setDeleteScope("single")}
               >
@@ -1054,7 +1096,9 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 type="button"
                 disabled={!deleteTarget.recurringEventId}
                 className={`rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
-                  deleteScope === "future" ? "border-red-300 bg-red-300/20 text-white" : "border-white/20 text-white/70 hover:border-white/50"
+                  deleteScope === "future"
+                    ? "border-red-300 bg-red-500/10 text-white"
+                    : "border-[#3a4c78] text-[#d0dbff] hover:border-[#6ba1ff]"
                 } ${!deleteTarget.recurringEventId ? "cursor-not-allowed opacity-40" : ""}`}
                 onClick={() => deleteTarget.recurringEventId && setDeleteScope("future")}
               >
@@ -1064,7 +1108,9 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 type="button"
                 disabled={!deleteTarget.recurringEventId}
                 className={`rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
-                  deleteScope === "series" ? "border-red-300 bg-red-300/20 text-white" : "border-white/20 text-white/70 hover:border-white/50"
+                  deleteScope === "series"
+                    ? "border-red-300 bg-red-500/10 text-white"
+                    : "border-[#3a4c78] text-[#d0dbff] hover:border-[#6ba1ff]"
                 } ${!deleteTarget.recurringEventId ? "cursor-not-allowed opacity-40" : ""}`}
                 onClick={() => deleteTarget.recurringEventId && setDeleteScope("series")}
               >
@@ -1077,7 +1123,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
             <button
               type="button"
               onClick={closeDeleteModal}
-              className="w-full rounded-2xl border border-white/20 px-4 py-2 text-sm font-semibold text-white/80 transition hover:border-white/50"
+              className="w-full rounded-2xl border border-[#3a4c78] px-4 py-2 text-sm font-semibold text-[#d6e0ff] transition hover:border-[#6ba1ff]"
               disabled={isDeleting}
             >
               Cancel
@@ -1130,11 +1176,11 @@ function EventList({
   onShowDayDetail?: (date: Date) => void;
 }) {
   if (isLoading && !events.length) {
-    return <p className="text-sm text-slate-400">Loading events…</p>;
+    return <p className="text-sm text-[#7d8fca]">Loading events…</p>;
   }
 
   if (expanded && !events.length) {
-    return <p className="text-sm text-slate-400">No events scheduled for this period.</p>;
+    return <p className="text-sm text-[#7d8fca]">No events scheduled for this period.</p>;
   }
 
   if (expanded && viewMode === "month" && currentMonthStart) {
@@ -1212,11 +1258,11 @@ function EventList({
         return (
           <div
             key={label}
-            className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-slate-950/60 p-3"
+            className="flex min-h-0 flex-col rounded-2xl border border-[#1f2b4a] bg-[#0c162d] p-3 shadow-inner shadow-[#060b15]"
           >
             <div className="mb-2 flex items-center justify-between">
               <p className="text-sm font-semibold text-white">{label}</p>
-              <p className="text-xs text-slate-400">{format(date, "MMM d")}</p>
+              <p className="text-xs text-[#7d8fca]">{format(date, "MMM d")}</p>
             </div>
             {combinedEntries.length ? (
               <ul className="flex-1 space-y-2 overflow-auto pr-1 text-sm">
@@ -1225,18 +1271,18 @@ function EventList({
                     const recurrenceNote = describeRecurrence(entry.event.recurrence?.[0]);
                     return (
                       <li key={entry.event.id}>
-                        <div className="w-full rounded-xl border border-white/5 bg-slate-900/70 p-3 text-left">
-                          <p className="text-base font-semibold text-white">{entry.event.summary || "(untitled)"}</p>
-                          <p className="text-sm text-slate-300">
+                        <div className="w-full rounded-xl border border-[#2d3c60] bg-[#111c36] p-3 text-left">
+                          <p className="text-base font-semibold text-[#f4f7ff]">{entry.event.summary || "(untitled)"}</p>
+                          <p className="text-sm text-[#9fb4ff]">
                             {formatEventTime(entry.event.start)} – {formatEventTime(entry.event.end)}
                           </p>
                           {entry.event.description && (
-                            <p className="mt-1 overflow-hidden text-ellipsis text-sm text-slate-400">
+                            <p className="mt-1 overflow-hidden text-ellipsis text-sm text-[#b4c3ff]">
                               {entry.event.description}
                             </p>
                           )}
-                          {entry.event.location && <p className="text-sm text-slate-500">{entry.event.location}</p>}
-                          {recurrenceNote && <p className="text-xs text-slate-400">{recurrenceNote}</p>}
+                          {entry.event.location && <p className="text-sm text-[#9fb4ff]">{entry.event.location}</p>}
+                          {recurrenceNote && <p className="text-xs text-[#8aa3ec]">{recurrenceNote}</p>}
                         </div>
                       </li>
                     );
@@ -1251,14 +1297,14 @@ function EventList({
 
                     return (
                       <li key={`todo-${entry.todo.id}`}>
-                        <div className="w-full rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-3">
-                          <div className="mb-1 flex items-center justify-between text-[0.65rem] uppercase tracking-[0.3em] text-emerald-200">
+                        <div className="w-full rounded-xl border border-[#10b981]/40 bg-[#052a1c] p-3">
+                          <div className="mb-1 flex items-center justify-between text-[0.65rem] uppercase tracking-[0.3em] text-[#6ee7b7]">
                             <span>Todo</span>
                             {dueLabel && <span className="text-[0.6rem] tracking-wide">{dueLabel}</span>}
                           </div>
                           <p className="text-base font-semibold text-white">{entry.todo.label}</p>
                           {entry.todo.note && (
-                            <p className="mt-1 text-xs text-emerald-100/80">{entry.todo.note}</p>
+                            <p className="mt-1 text-xs text-[#bbf7d0]">{entry.todo.note}</p>
                           )}
                         </div>
                       </li>
@@ -1267,22 +1313,22 @@ function EventList({
 
                   return (
                     <li key={`chore-${entry.chore.id}`}>
-                      <div className="w-full rounded-xl border border-orange-400/40 bg-orange-500/10 p-3">
-                        <div className="mb-1 flex items-center justify-between text-[0.65rem] uppercase tracking-[0.3em] text-orange-200">
+                      <div className="w-full rounded-xl border border-[#f97316]/40 bg-[#2b1405] p-3">
+                        <div className="mb-1 flex items-center justify-between text-[0.65rem] uppercase tracking-[0.3em] text-[#fdba74]">
                           <span>Chore</span>
                           <span className="text-[0.6rem] tracking-wide">
                             {getChoreFrequencyLabel(entry.chore)}
                           </span>
                         </div>
                         <p className="text-base font-semibold text-white">{entry.chore.label}</p>
-                        {entry.chore.note && <p className="mt-1 text-xs text-orange-100/80">{entry.chore.note}</p>}
+                        {entry.chore.note && <p className="mt-1 text-xs text-[#fed7aa]">{entry.chore.note}</p>}
                       </div>
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/10 text-xs text-slate-500">
+              <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-[#243356] text-xs text-[#6b7fb5]">
                 No events
               </div>
             )}
@@ -1312,7 +1358,7 @@ function CalendarWeekGrid({
   const weekHasWeather = days.some((day) => Boolean(getWeatherForDate(weatherByDate, day)));
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-white/5 bg-slate-900/60 p-2.5">
+    <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-[#1f2a44] bg-[#0c162d] p-2.5 shadow-inner shadow-[#060b15]">
       <div className="flex-1 overflow-auto pr-1">
         <div className="grid min-h-full grid-cols-2 gap-2.5 md:grid-cols-4 lg:grid-cols-7">
           {days.map((day) => {
@@ -1332,15 +1378,15 @@ function CalendarWeekGrid({
             return (
               <div
                 key={day.toISOString()}
-                className={`flex min-h-0 flex-col rounded-xl border p-1.5 transition border-white/5 bg-slate-950/50 cursor-pointer`}
+                className={`flex min-h-0 flex-col rounded-xl border p-1.5 transition ${isTodayCell ? "border-[#4c6ef5]" : "border-[#22304e]"} bg-[#0b152a] cursor-pointer hover:border-[#6ba1ff]`}
                 onClick={() => onCreateFromDate?.(day)}
               >
-                <div className="flex items-center justify-between border-b border-white/5 pb-0.5">
-                  <p className="text-sm font-semibold text-white">{format(day, "EEE")}</p>
-                  <div className="flex items-center gap-1 text-xs text-slate-400">
+                <div className="flex items-center justify-between border-b border-[#1f2942] pb-0.5">
+                  <p className="text-sm font-semibold text-[#eff4ff]">{format(day, "EEE")}</p>
+                  <div className="flex items-center gap-1 text-xs text-[#9bb0ff]">
                     <span>{format(day, "MMM d")}</span>
                     {isTodayCell && (
-                      <span className="rounded-full bg-sky-500/30 px-2 py-[1px] text-[0.65rem] text-sky-50">Today</span>
+                      <span className="rounded-full bg-[#2563eb]/30 px-2 py-[1px] text-[0.65rem] text-sky-50">Today</span>
                     )}
                   </div>
                 </div>
@@ -1351,21 +1397,21 @@ function CalendarWeekGrid({
                       return (
                         <div
                           key={calendarEvent.id}
-                          className="w-full space-y-0.5 rounded-lg border border-sky-400/30 bg-sky-400/10 p-2 text-left text-xs text-white/90"
+                          className="w-full space-y-0.5 rounded-lg border border-[#3b82f6]/50 bg-[#132449] p-2 text-left text-xs text-white/90"
                         >
                           <p className="font-semibold">{calendarEvent.summary || "(untitled)"}</p>
-                          <p className="text-[0.6rem] uppercase tracking-wide text-slate-200">
+                          <p className="text-[0.6rem] uppercase tracking-wide text-[#a7bdfd]">
                             {formatEventRange(calendarEvent)}
                           </p>
-                          {calendarEvent.location && <p className="text-[0.6rem] text-slate-300">{calendarEvent.location}</p>}
-                          {recurrenceNote && <p className="text-[0.6rem] text-slate-200/80">{recurrenceNote}</p>}
+                          {calendarEvent.location && <p className="text-[0.6rem] text-[#9cb4ff]">{calendarEvent.location}</p>}
+                          {recurrenceNote && <p className="text-[0.6rem] text-[#8da2ea]">{recurrenceNote}</p>}
                         </div>
                       );
                     })
                   ) : (
-                    <p className="text-xs text-slate-500">— Free —</p>
+                    <p className="text-xs text-[#5c6ea4]">— Free —</p>
                   )}
-                  <div className="mt-1 min-h-[32px] text-[0.7rem] text-white/70">
+                  <div className="mt-1 min-h-[32px] text-[0.7rem] text-[#d6e2ff]">
                     {weather ? (
                       <>
                         <p>
@@ -1413,8 +1459,8 @@ function CalendarMonthGrid({
     weeks.push(days.slice(index, index + 7));
   }
   return (
-    <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-white/5 bg-slate-900/60 p-2.5 lg:p-3">
-      <div className="grid grid-cols-7 gap-1 text-[0.65rem] uppercase tracking-[0.25em] text-slate-400 lg:text-[0.7rem]">
+    <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-[#1f2a44] bg-[#0c162d] p-2.5 shadow-inner shadow-[#060b15] lg:p-3">
+      <div className="grid grid-cols-7 gap-1 text-[0.65rem] uppercase tracking-[0.25em] text-[#7d8fca] lg:text-[0.7rem]">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label) => (
           <span key={label} className="text-center font-semibold">
             {label}
@@ -1453,9 +1499,9 @@ function CalendarMonthGrid({
                     key={day.toISOString()}
                     className={`flex min-h-0 flex-col rounded-xl border p-2.5 transition-colors ${
                       today
-                        ? "border-sky-400/70 bg-slate-950/75 shadow-lg shadow-sky-900/20"
-                        : "border-white/5 bg-slate-950/55"
-                    } ${inCurrentMonth ? "text-white" : "text-slate-500/80"}`}
+                        ? "border-[#5c7dff] bg-[#121d3c] shadow-lg shadow-[#1d2f55]/60"
+                        : "border-[#1f2942] bg-[#090f1f]"
+                    } ${inCurrentMonth ? "text-white" : "text-[#5e6b8d]"}`}
                     onClick={() => onShowDayDetail?.(day)}
                     onDoubleClick={() => onCreateFromDate?.(day)}
                     onKeyDown={(event) => {
@@ -1485,18 +1531,18 @@ function CalendarMonthGrid({
                               key={calendarEvent.id ?? `${day.toISOString()}-${calendarEvent.summary ?? "event"}`}
                               className={`w-full rounded-lg border px-2 py-1.5 text-left text-white ${
                                 editingId === calendarEvent.id
-                                  ? "border-sky-400/70 bg-sky-500/20"
-                                  : "border-white/10 bg-white/5"
+                                  ? "border-[#5c7dff] bg-[#101c38] shadow-[#1d2f55]/40"
+                                  : "border-[#2a3458] bg-[#0d1730]"
                               } ${isDisabled ? "opacity-60" : ""}`}
                             >
                               <span className="flex items-center gap-1.5 text-[0.75rem] font-semibold">
                                 <span className="truncate">{calendarEvent.summary || "(untitled)"}</span>
-                                <span className="shrink-0 text-[0.6rem] uppercase tracking-wide text-slate-200">
+                                <span className="shrink-0 text-[0.6rem] uppercase tracking-wide text-[#d4e0ff]">
                                   {formatEventRange(calendarEvent)}
                                 </span>
                               </span>
                               {recurrenceNote && (
-                                <span className="mt-0.5 text-[0.55rem] uppercase tracking-[0.2em] text-slate-300">
+                                <span className="mt-0.5 text-[0.55rem] uppercase tracking-[0.2em] text-[#c7d4ff]">
                                   {recurrenceNote}
                                 </span>
                               )}
@@ -1504,7 +1550,7 @@ function CalendarMonthGrid({
                           );
                         })
                       ) : (
-                        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-white/10 text-[0.65rem] text-slate-500">
+                        <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-[#2a3458] text-[0.65rem] text-[#8ca0d8]">
                           No events
                         </div>
                       )}
@@ -1518,6 +1564,35 @@ function CalendarMonthGrid({
       </div>
     </div>
   );
+}
+
+type CalendarResponsePayload = {
+  events?: CalendarEvent[];
+  needsSetup?: boolean;
+  error?: string;
+};
+
+async function parseJsonPayload(response: Response, label: string): Promise<CalendarResponsePayload | null> {
+  const text = await response.text();
+  if (!text) {
+    if (!response.ok) {
+      throw new Error(`${label} request failed (HTTP ${response.status})`);
+    }
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${label} returned invalid data (HTTP ${response.status})`);
+  }
+}
+
+function buildHttpErrorMessage(response: Response, payload: unknown, fallback: string) {
+  if (payload && typeof payload === "object" && typeof (payload as CalendarResponsePayload).error === "string") {
+    return `${(payload as CalendarResponsePayload).error} (HTTP ${response.status})`;
+  }
+  const reason = response.statusText || fallback;
+  return `${reason} (HTTP ${response.status})`;
 }
 
 function formatEventTime(value?: { date?: string | null; dateTime?: string | null }) {
