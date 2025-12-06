@@ -23,6 +23,7 @@ import {
 import { useWeather, WeatherDay } from "@/hooks/useWeather";
 import { ListItem, usePersistentList } from "@/hooks/usePersistentList";
 import { useErrorLog } from "@/context/error-log";
+import { useNow } from "@/hooks/useNow";
 
 type CalendarEvent = {
   id: string;
@@ -215,10 +216,20 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   const [activeEditEvent, setActiveEditEvent] = useState<CalendarEvent | null>(null);
   const [activeDayDetail, setActiveDayDetail] = useState<Date | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
+  const now = useNow();
+  const [today, setToday] = useState<Date>(() => startOfDay(new Date()));
   const { daily: weatherDaily } = useWeather(14);
   const { logError } = useErrorLog();
   const { items: todoItems } = usePersistentList("todo-items");
   const { items: choreItems } = usePersistentList("chore-items");
+
+  useEffect(() => {
+    setToday((previous) => {
+      const next = startOfDay(now);
+      return next.getTime() === previous.getTime() ? previous : next;
+    });
+  }, [now]);
+
   const weatherByDate = useMemo(() => {
     const map = new Map<string, WeatherDay>();
     weatherDaily.forEach((day) => {
@@ -228,24 +239,23 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   }, [weatherDaily]);
 
   const weekRange = useMemo(() => {
-    const anchor = addWeeks(new Date(), weekOffset);
+    const anchor = addWeeks(today, weekOffset);
     return {
       start: startOfWeek(anchor, { weekStartsOn: 1 }),
       end: endOfWeek(anchor, { weekStartsOn: 1 }),
     };
-  }, [weekOffset]);
+  }, [today, weekOffset]);
 
   const dayRange = useMemo(() => {
-    const today = new Date();
     const tomorrow = addDays(today, 1);
     return {
-      start: startOfDay(today),
+      start: today,
       end: endOfDay(tomorrow),
     };
-  }, []);
+  }, [today]);
 
   const monthRange = useMemo(() => {
-    const anchor = addMonths(new Date(), monthOffset);
+    const anchor = addMonths(today, monthOffset);
     const monthStartDate = startOfMonth(anchor);
     const monthEndDate = endOfMonth(anchor);
     return {
@@ -253,7 +263,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       end: endOfWeek(monthEndDate, { weekStartsOn: 1 }),
       monthStart: monthStartDate,
     };
-  }, [monthOffset]);
+  }, [monthOffset, today]);
 
   const isExpandedMonthView = expanded && viewMode === "month";
   const isExpandedWeekView = expanded && viewMode === "week";
