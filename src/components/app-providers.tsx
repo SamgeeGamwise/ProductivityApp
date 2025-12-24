@@ -1,9 +1,16 @@
 "use client";
 
 import { UiSettingsProvider } from "@/context/ui-settings";
-import { useVirtualKeyboard } from "@/hooks/useVirtualKeyboard";
+import { ErrorLogProvider } from "@/context/error-log";
+import { OnScreenKeyboard } from "./on-screen-keyboard";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  useVirtualKeyboard();
-  return <UiSettingsProvider>{children}</UiSettingsProvider>;
+  return (
+    <UiSettingsProvider>
+      <ErrorLogProvider>
+        {children}
+        <OnScreenKeyboard />
+      </ErrorLogProvider>
+    </UiSettingsProvider>
+  );
 }

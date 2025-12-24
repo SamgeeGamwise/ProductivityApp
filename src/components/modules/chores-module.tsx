@@ -57,7 +57,7 @@ export function ChoresModule() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <ul className="flex-1 space-y-2 overflow-auto pr-1">
+        <ul className="flex-1 space-y-2 overflow-auto pr-1 max-h-80">
           {sorted.map((item) => (
             <li key={item.id} className="rounded-2xl border border-white/10 bg-slate-900/70 p-3">
               <div className="flex items-start justify-between gap-3">
