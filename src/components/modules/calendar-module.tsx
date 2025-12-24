@@ -34,7 +34,7 @@ type CalendarEvent = {
   recurringEventId?: string | null;
 };
 
-type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly";
+type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
 type NewEventState = {
   summary: string;
@@ -50,12 +50,14 @@ const recurrenceLabels: Record<Exclude<RecurrenceFrequency, "none">, string> = {
   daily: "Daily",
   weekly: "Weekly",
   monthly: "Monthly",
+  yearly: "Yearly",
 };
 
 const recurrenceUnits: Record<Exclude<RecurrenceFrequency, "none">, string> = {
   daily: "day",
   weekly: "week",
   monthly: "month",
+  yearly: "year",
 };
 
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0"));
@@ -91,6 +93,8 @@ function parseRecurrenceRule(rule?: string | null): { frequency: RecurrenceFrequ
       return { frequency: "weekly", interval: intervalValue || 1 };
     case "MONTHLY":
       return { frequency: "monthly", interval: intervalValue || 1 };
+    case "YEARLY":
+      return { frequency: "yearly", interval: intervalValue || 1 };
     default:
       return { frequency: "none", interval: 1 };
   }
@@ -968,6 +972,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                     <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
                   </select>
                   {newEvent.recurrenceFrequency !== "none" && (
                     <div className="flex items-center gap-2 text-xs text-slate-200">

@@ -33,14 +33,14 @@ export async function GET(request: NextRequest) {
 }
 
 type RecurrencePayload = {
-  frequency: "daily" | "weekly" | "monthly";
+  frequency: "daily" | "weekly" | "monthly" | "yearly";
   interval?: number;
 } | null;
 
 function buildRecurrenceRule(recurrence: RecurrencePayload) {
   if (!recurrence) return null;
   const freq = recurrence.frequency?.toUpperCase();
-  if (!freq || !["DAILY", "WEEKLY", "MONTHLY"].includes(freq)) {
+  if (!freq || !["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(freq)) {
     return null;
   }
   const interval = Math.max(1, Number(recurrence.interval) || 1);
