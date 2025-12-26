@@ -643,7 +643,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       <ModuleCard
       title="Calendar"
       accent="from-[#3b82f6]/40 via-[#1f2547]/50 to-[#050912]"
-      className={`rounded-3xl border border-[#1f2a44] bg-gradient-to-br from-[#040814] via-[#060c18] to-[#02040a] text-[#e6eeff] ${expanded ? "min-h-0 w-full text-sm" : "min-h-0 w-full text-xs"}`}
+      className={`rounded-3xl border border-[#1f2a44] bg-[#03060f] text-[#e6eeff] ${expanded ? "min-h-0 w-full text-sm" : "min-h-0 w-full text-xs"}`}
       contentClassName={expanded ? "gap-4 overflow-hidden" : "gap-3"}
       actions={
         <div className="flex w-full flex-col gap-3 text-sm text-[#d9e5ff] lg:flex-row lg:items-center lg:justify-between">
