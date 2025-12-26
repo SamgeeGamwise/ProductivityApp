@@ -894,6 +894,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 <div className="space-y-2">
                   <input
                     type="date"
+                    lang="en-US"
                     className="calendar-field w-full rounded-2xl border border-[#2b3658] bg-[#0d1730] px-3 py-2 text-white outline-none focus:border-[#7aa8ff]"
                     value={newEvent.allDay ? startDateValue : startTimeParts.date}
                     onChange={(event) => updateDateControl("start", { date: event.target.value })}
@@ -943,6 +944,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
                 <div className="space-y-2">
                   <input
                     type="date"
+                    lang="en-US"
                     className="calendar-field w-full rounded-2xl border border-[#2b3658] bg-[#0d1730] px-3 py-2 text-white outline-none focus:border-[#7aa8ff]"
                     value={newEvent.allDay ? endDateValue : endTimeParts.date}
                     onChange={(event) => updateDateControl("end", { date: event.target.value })}
