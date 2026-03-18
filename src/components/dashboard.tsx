@@ -25,12 +25,12 @@ export function Dashboard() {
               <CalendarModule expanded onToggleExpand={() => setCalendarExpanded(false)} />
             </div>
           ) : (
-            <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+            <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,2fr)]">
               <div className="flex min-h-0 w-full flex-col gap-4">
-                <div className="flex w-full">
+                <div className="flex min-h-0 w-full flex-[5]">
                   <WeatherModule />
                 </div>
-                <div className="flex min-h-0 w-full flex-1">
+                <div className="flex min-h-0 w-full flex-[6]">
                   <CalendarModule onToggleExpand={() => setCalendarExpanded(true)} />
                 </div>
               </div>

@@ -68,6 +68,7 @@ const MERIDIEMS: Array<"AM" | "PM"> = ["AM", "PM"];
 const AUTO_EVENT_DURATION_MS = 60 * 60 * 1000;
 const DEFAULT_EVENT_START_HOUR = 9;
 const EVENT_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+const EVENT_RETRY_DELAYS_MS = [15 * 1000, 30 * 1000, 60 * 1000];
 
 function createDefaultEvent(): NewEventState {
   const start = nextRoundedDate();
@@ -296,9 +297,11 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       setNeedsSetup(Boolean(payload?.needsSetup));
       setEvents(Array.isArray(payload?.events) ? payload.events : []);
       setLastRefreshed(Date.now());
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error");
       logError("Calendar events", err);
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -306,16 +309,61 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
   useEffect(() => {
     let cancelled = false;
-    const refresh = () => {
-      if (!cancelled) {
-        void loadEvents();
+    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let retryAttempt = 0;
+
+    const clearRetryTimeout = () => {
+      if (retryTimeoutId) {
+        window.clearTimeout(retryTimeoutId);
+        retryTimeoutId = null;
       }
     };
+
+    const scheduleRetry = () => {
+      clearRetryTimeout();
+      const delay = EVENT_RETRY_DELAYS_MS[Math.min(retryAttempt, EVENT_RETRY_DELAYS_MS.length - 1)];
+      retryAttempt += 1;
+      retryTimeoutId = window.setTimeout(() => {
+        retryTimeoutId = null;
+        if (!cancelled) {
+          void attemptLoad(false);
+        }
+      }, delay);
+    };
+
+    const attemptLoad = async (resetRetryAttempt: boolean) => {
+      if (cancelled) return;
+      if (resetRetryAttempt) {
+        retryAttempt = 0;
+      }
+      const succeeded = await loadEvents();
+      if (succeeded) {
+        retryAttempt = 0;
+      } else {
+        scheduleRetry();
+      }
+    };
+
+    const refresh = () => {
+      if (!cancelled) {
+        void attemptLoad(true);
+      }
+    };
+
+    const handleOnline = () => {
+      retryAttempt = 0;
+      refresh();
+    };
+
     refresh();
     const intervalId = window.setInterval(refresh, EVENT_REFRESH_INTERVAL_MS);
+    window.addEventListener("online", handleOnline);
+
     return () => {
       cancelled = true;
+      clearRetryTimeout();
       window.clearInterval(intervalId);
+      window.removeEventListener("online", handleOnline);
     };
   }, [loadEvents]);
 
@@ -475,7 +523,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
         resetForm();
       }
       closeDeleteModal();
-      loadEvents();
+      void loadEvents();
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Unexpected error");
       logError("Calendar delete", err);
@@ -486,9 +534,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
   const effectiveViewMode = expanded ? viewMode : "week";
   const visibleEvents = events;
-  const overflow = 0;
   const isEditing = Boolean(editingId);
-  const navResetLabel = isExpandedMonthView ? "This Month" : "This Week";
 
   const handlePrev = () => {
     if (isExpandedMonthView) {
@@ -753,7 +799,6 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
           <EventList
             events={visibleEvents}
             isLoading={isLoading}
-            overflow={overflow}
             expanded={expanded}
             range={range}
             viewMode={effectiveViewMode}
@@ -1148,7 +1193,6 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 function EventList({
   events,
   isLoading,
-  overflow,
   expanded,
   range,
   viewMode,
@@ -1163,7 +1207,6 @@ function EventList({
 }: {
   events: CalendarEvent[];
   isLoading: boolean;
-  overflow: number;
   expanded: boolean;
   range: { start: Date; end: Date };
   viewMode: "week" | "month";
@@ -1266,13 +1309,19 @@ function EventList({
               <p className="text-xs text-[#7d8fca]">{format(date, "MMM d")}</p>
             </div>
             {combinedEntries.length ? (
-              <ul className="flex-1 space-y-2 overflow-auto pr-1 text-sm max-h-80">
+              <ul className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1 text-sm">
                 {combinedEntries.map((entry) => {
                   if (entry.type === "event") {
                     const recurrenceNote = describeRecurrence(entry.event.recurrence?.[0]);
+                    const isDisabled = !entry.event.id;
                     return (
                       <li key={entry.event.id}>
-                        <div className="w-full rounded-xl border border-[#2d3c60] bg-[#111c36] p-3 text-left">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(entry.event)}
+                          disabled={isDisabled}
+                          className="w-full rounded-xl border border-[#2d3c60] bg-[#111c36] p-3 text-left transition hover:border-[#5f7fd9] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
                           <p className="text-base font-semibold text-[#f4f7ff]">{entry.event.summary || "(untitled)"}</p>
                           <p className="text-sm text-[#9fb4ff]">
                             {formatEventTime(entry.event.start)} – {formatEventTime(entry.event.end)}
@@ -1284,7 +1333,7 @@ function EventList({
                           )}
                           {entry.event.location && <p className="text-sm text-[#9fb4ff]">{entry.event.location}</p>}
                           {recurrenceNote && <p className="text-xs text-[#8aa3ec]">{recurrenceNote}</p>}
-                        </div>
+                        </button>
                       </li>
                     );
                   }
@@ -1356,7 +1405,6 @@ function CalendarWeekGrid({
   onCreateFromDate?: (date: Date) => void;
 }) {
   const days = eachDayOfInterval({ start: range.start, end: range.end });
-  const weekHasWeather = days.some((day) => Boolean(getWeatherForDate(weatherByDate, day)));
 
   return (
     <div className="flex flex-1 min-h-0 flex-col rounded-2xl border border-[#1f2a44] bg-[#0c162d] p-2.5 shadow-inner shadow-[#060b15]">
@@ -1396,9 +1444,15 @@ function CalendarWeekGrid({
                     dayEvents.map((calendarEvent) => {
                       const recurrenceNote = describeRecurrence(calendarEvent.recurrence?.[0]);
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={calendarEvent.id}
-                          className="w-full space-y-0.5 rounded-lg border border-[#3b82f6]/50 bg-[#132449] p-2 text-left text-xs text-white/90"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onEdit(calendarEvent);
+                          }}
+                          disabled={!calendarEvent.id}
+                          className="w-full space-y-0.5 rounded-lg border border-[#3b82f6]/50 bg-[#132449] p-2 text-left text-xs text-white/90 transition hover:border-[#78a7ff] disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <p className="font-semibold">{calendarEvent.summary || "(untitled)"}</p>
                           <p className="text-[0.6rem] uppercase tracking-wide text-[#a7bdfd]">
@@ -1406,7 +1460,7 @@ function CalendarWeekGrid({
                           </p>
                           {calendarEvent.location && <p className="text-[0.6rem] text-[#9cb4ff]">{calendarEvent.location}</p>}
                           {recurrenceNote && <p className="text-[0.6rem] text-[#8da2ea]">{recurrenceNote}</p>}
-                        </div>
+                        </button>
                       );
                     })
                   ) : (
@@ -1528,13 +1582,19 @@ function CalendarMonthGrid({
                           const recurrenceNote = describeRecurrence(calendarEvent.recurrence?.[0]);
                           const isDisabled = !calendarEvent.id;
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={calendarEvent.id ?? `${day.toISOString()}-${calendarEvent.summary ?? "event"}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onEdit(calendarEvent);
+                              }}
+                              disabled={isDisabled}
                               className={`w-full rounded-lg border px-2 py-1.5 text-left text-white ${
                                 editingId === calendarEvent.id
                                   ? "border-[#5c7dff] bg-[#101c38] shadow-[#1d2f55]/40"
                                   : "border-[#2a3458] bg-[#0d1730]"
-                              } ${isDisabled ? "opacity-60" : ""}`}
+                              } ${isDisabled ? "cursor-not-allowed opacity-60" : "transition hover:border-[#78a7ff]"}`}
                             >
                               <span className="flex items-center gap-1.5 text-[0.75rem] font-semibold">
                                 <span className="truncate">{calendarEvent.summary || "(untitled)"}</span>
@@ -1547,7 +1607,7 @@ function CalendarMonthGrid({
                                   {recurrenceNote}
                                 </span>
                               )}
-                            </div>
+                            </button>
                           );
                         })
                       ) : (

@@ -7,6 +7,12 @@ export type WeatherDay = {
   max: number;
   min: number;
   precipitation?: number | null;
+  precipitationSum?: number | null;
+  rainSum?: number | null;
+  snowfallSum?: number | null;
+  code?: number | null;
+  sunrise?: string | null;
+  sunset?: string | null;
 };
 
 export type WeatherCurrent = {
@@ -21,6 +27,12 @@ type WeatherApiResponse = {
     temperature_2m_max?: number[];
     temperature_2m_min?: number[];
     precipitation_probability_max?: number[];
+    precipitation_sum?: number[];
+    rain_sum?: number[];
+    snowfall_sum?: number[];
+    weather_code?: number[];
+    sunrise?: string[];
+    sunset?: string[];
   };
   current_weather?: {
     temperature?: number;
@@ -30,6 +42,7 @@ type WeatherApiResponse = {
 };
 
 const WEATHER_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+const WEATHER_RETRY_DELAYS_MS = [15 * 1000, 30 * 1000, 60 * 1000];
 
 export function useWeather(days = 7) {
   const [daily, setDaily] = useState<WeatherDay[]>([]);
@@ -42,8 +55,29 @@ export function useWeather(days = 7) {
   useEffect(() => {
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let retryAttempt = 0;
+
+    const clearRetryTimeout = () => {
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId);
+        retryTimeoutId = null;
+      }
+    };
+
+    const scheduleRetry = () => {
+      clearRetryTimeout();
+      const retryDelay =
+        WEATHER_RETRY_DELAYS_MS[Math.min(retryAttempt, WEATHER_RETRY_DELAYS_MS.length - 1)];
+      retryAttempt += 1;
+      retryTimeoutId = setTimeout(() => {
+        retryTimeoutId = null;
+        void load();
+      }, retryDelay);
+    };
 
     async function load() {
+      clearRetryTimeout();
       setIsLoading(true);
       setError(null);
       try {
@@ -66,10 +100,12 @@ export function useWeather(days = 7) {
           setDaily(parsed.daily);
           setCurrent(parsed.current);
           setLastUpdated(Date.now());
+          retryAttempt = 0;
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Unexpected error loading weather");
+          scheduleRetry();
         }
       } finally {
         if (!cancelled) {
@@ -78,16 +114,25 @@ export function useWeather(days = 7) {
       }
     }
 
+    const handleOnline = () => {
+      retryAttempt = 0;
+      void load();
+    };
+
     void load();
     intervalId = setInterval(() => {
+      retryAttempt = 0;
       void load();
     }, WEATHER_REFRESH_INTERVAL_MS);
+    window.addEventListener("online", handleOnline);
 
     return () => {
       cancelled = true;
+      clearRetryTimeout();
       if (intervalId) {
         clearInterval(intervalId);
       }
+      window.removeEventListener("online", handleOnline);
     };
   }, [days, reloadToken]);
 
@@ -108,11 +153,23 @@ function parseWeather(payload: WeatherApiResponse | null | undefined): ParsedWea
   const maxes: number[] = payload?.daily?.temperature_2m_max ?? [];
   const mins: number[] = payload?.daily?.temperature_2m_min ?? [];
   const precip: number[] = payload?.daily?.precipitation_probability_max ?? [];
+  const precipitationSums: number[] = payload?.daily?.precipitation_sum ?? [];
+  const rainSums: number[] = payload?.daily?.rain_sum ?? [];
+  const snowfallSums: number[] = payload?.daily?.snowfall_sum ?? [];
+  const weatherCodes: number[] = payload?.daily?.weather_code ?? [];
+  const sunrises: string[] = payload?.daily?.sunrise ?? [];
+  const sunsets: string[] = payload?.daily?.sunset ?? [];
   const daily = times.map((time, index) => ({
     date: time,
     max: toFahrenheit(maxes[index]),
     min: toFahrenheit(mins[index]),
     precipitation: precip[index],
+    precipitationSum: toRoundedNumber(precipitationSums[index]),
+    rainSum: toRoundedNumber(rainSums[index]),
+    snowfallSum: toRoundedNumber(snowfallSums[index]),
+    code: typeof weatherCodes[index] === "number" ? weatherCodes[index] : null,
+    sunrise: sunrises[index] ?? null,
+    sunset: sunsets[index] ?? null,
   }));
 
   const currentPayload = payload?.current_weather;
@@ -130,6 +187,11 @@ function parseWeather(payload: WeatherApiResponse | null | undefined): ParsedWea
 function toFahrenheit(value?: number): number {
   if (typeof value !== "number" || Number.isNaN(value)) return 0;
   return Math.round((value * 9) / 5 + 32);
+}
+
+function toRoundedNumber(value?: number) {
+  if (typeof value !== "number" || Number.isNaN(value)) return null;
+  return Math.round(value * 10) / 10;
 }
 
 function describeWeatherCode(code: unknown) {

@@ -13,7 +13,20 @@ export async function GET(request: NextRequest) {
     const url = new URL("https://api.open-meteo.com/v1/forecast");
     url.searchParams.set("latitude", lat);
     url.searchParams.set("longitude", lon);
-    url.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,precipitation_probability_max");
+    url.searchParams.set(
+      "daily",
+      [
+        "temperature_2m_max",
+        "temperature_2m_min",
+        "precipitation_probability_max",
+        "precipitation_sum",
+        "rain_sum",
+        "snowfall_sum",
+        "weather_code",
+        "sunrise",
+        "sunset",
+      ].join(",")
+    );
     url.searchParams.set("current_weather", "true");
     url.searchParams.set("timezone", "auto");
     url.searchParams.set("forecast_days", days.toString());
