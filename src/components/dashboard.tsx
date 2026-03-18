@@ -6,16 +6,18 @@ import { CalendarModule } from "./modules/calendar-module";
 import { TodoModule } from "./modules/todo-module";
 import { ChoresModule } from "./modules/chores-module";
 import { WeatherModule } from "./modules/weather-module";
+import { FullscreenToggle } from "./fullscreen-toggle";
 
 export function Dashboard() {
   const [calendarExpanded, setCalendarExpanded] = useState(false);
 
   return (
-    <div className="h-dvh w-full max-w-none overflow-hidden bg-slate-950 bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.25),_transparent_60%)] p-4 text-slate-100">
+    <div className="h-dvh w-full max-w-none overflow-hidden p-4 text-slate-100">
       <div className="flex h-full w-full flex-col gap-4 overflow-hidden">
+        <FullscreenToggle />
         <Link
           href="/settings"
-          className="fixed bottom-4 right-4 z-50 rounded-full border border-white/20 bg-slate-900/30 px-4 py-2 text-sm font-semibold uppercase tracking-wide text-slate-200 shadow-lg shadow-black/30 backdrop-blur transition hover:border-white/60 hover:text-white"
+          className="fixed bottom-4 right-4 z-50 rounded-full border border-white/15 bg-[rgba(11,24,42,0.68)] px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-slate-100 shadow-[0_12px_28px_rgba(4,10,20,0.28)] backdrop-blur-xl transition hover:border-white/35 hover:bg-[rgba(17,34,58,0.8)] hover:text-white"
         >
           Settings
         </Link>

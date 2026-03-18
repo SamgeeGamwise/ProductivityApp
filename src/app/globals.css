@@ -3,8 +3,10 @@
 :root {
   font-size: 16px;
   --ui-scale: 1;
-  --background: #020617;
-  --foreground: #f8fafc;
+  --background: #07111f;
+  --foreground: #f5f7fb;
+  --surface: rgba(9, 18, 34, 0.78);
+  --surface-border: rgba(167, 184, 221, 0.16);
 }
 
 @theme inline {
@@ -27,6 +29,29 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   overflow: hidden;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(93, 173, 226, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 16%, rgba(166, 124, 82, 0.14), transparent 24%),
+    radial-gradient(circle at 50% 100%, rgba(72, 119, 168, 0.22), transparent 34%),
+    linear-gradient(180deg, #091322 0%, #07111f 48%, #050c18 100%);
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)),
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.035), transparent 55%);
+  mix-blend-mode: screen;
+  opacity: 0.55;
+}
+
+::selection {
+  background: rgba(148, 197, 255, 0.28);
+  color: #f8fbff;
 }
 
 .calendar-field::-webkit-calendar-picker-indicator,
