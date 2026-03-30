@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 
 const execAsync = promisify(exec);
 const REPO_ROOT = process.cwd();
+type ExecError = Error & { stderr?: string; stdout?: string };
 
 export async function POST() {
   try {
@@ -16,9 +17,10 @@ export async function POST() {
       stderr: stderr.trim(),
     });
   } catch (error) {
+    const execError = error as ExecError;
     const message = error instanceof Error ? error.message : "Unknown error";
-    const stderr = typeof error === "object" && error && "stderr" in error ? String((error as any).stderr) : "";
-    const stdout = typeof error === "object" && error && "stdout" in error ? String((error as any).stdout) : "";
+    const stderr = typeof execError.stderr === "string" ? execError.stderr : "";
+    const stdout = typeof execError.stdout === "string" ? execError.stdout : "";
     return NextResponse.json(
       {
         success: false,

@@ -2,9 +2,16 @@
 
 import { useEffect } from "react";
 
+type NavigatorWithVirtualKeyboard = Navigator & {
+  virtualKeyboard?: {
+    overlaysContent?: boolean;
+    show?: () => Promise<void> | void;
+  };
+};
+
 export function useVirtualKeyboard() {
   useEffect(() => {
-    const vk = (navigator as any).virtualKeyboard;
+    const vk = (navigator as NavigatorWithVirtualKeyboard).virtualKeyboard;
     if (!vk || typeof vk.show !== "function") {
       return;
     }

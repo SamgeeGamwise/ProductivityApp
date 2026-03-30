@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-static";
+
 const FALLBACK_QUOTES = [
   { quote: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
   { quote: "You are never too small to make a difference.", author: "Greta Thunberg" },

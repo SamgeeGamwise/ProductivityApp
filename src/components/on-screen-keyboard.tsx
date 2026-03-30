@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { useOnScreenKeyboardController } from "@/hooks/useOnScreenKeyboard";
@@ -18,12 +18,7 @@ const SYMBOL_ROWS = [
 ];
 
 export function OnScreenKeyboard() {
-  const [mounted, setMounted] = useState(false);
   const controller = useOnScreenKeyboardController();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const targetLabel = useMemo(() => {
     const target = controller.target;
@@ -35,7 +30,7 @@ export function OnScreenKeyboard() {
     return "Editing";
   }, [controller.target]);
 
-  if (!mounted || !controller.isOpen) return null;
+  if (typeof document === "undefined" || !controller.isOpen) return null;
 
   const renderKey = (label: string, display?: string, options?: { wide?: boolean; variant?: "primary" | "muted" }) => {
     const text = display || label;

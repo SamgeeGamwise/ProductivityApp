@@ -24,9 +24,27 @@ type PersistentListEventDetail = {
   sourceId: string;
 };
 
+function readInitialItems(key: string, defaults: Array<Partial<ListItem>>) {
+  const normalizedDefaults = defaults.map(normalizeItem);
+  if (typeof window === "undefined") {
+    return normalizedDefaults;
+  }
+
+  const stored = window.localStorage.getItem(key);
+  if (!stored) {
+    return normalizedDefaults;
+  }
+
+  try {
+    const parsed = JSON.parse(stored) as Array<Partial<ListItem>>;
+    return parsed.map(normalizeItem);
+  } catch {
+    return normalizedDefaults;
+  }
+}
+
 export function usePersistentList(key: string, defaults: Array<Partial<ListItem>> = []) {
-  const [items, setItems] = useState<ListItem[]>(() => defaults.map(normalizeItem));
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [items, setItems] = useState<ListItem[]>(() => readInitialItems(key, defaults));
   const instanceId = useMemo(() => createId(), []);
   const isApplyingRemoteUpdate = useRef(false);
   const defaultItemsRef = useRef(defaults.map(normalizeItem));
@@ -37,46 +55,32 @@ export function usePersistentList(key: string, defaults: Array<Partial<ListItem>
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(key);
-    let nextItems = defaultItemsRef.current;
-    if (stored) {
-      try {
-        nextItems = JSON.parse(stored);
-      } catch {
-        nextItems = defaultItemsRef.current;
-      }
-    }
-    setItems(nextItems.map(normalizeItem));
-    setIsHydrated(true);
-  }, [key]);
-
-  useEffect(() => {
-    if (!isHydrated || typeof window === "undefined") return;
     const normalized = items.map(normalizeItem);
     window.localStorage.setItem(key, JSON.stringify(normalized));
     if (isApplyingRemoteUpdate.current) {
       isApplyingRemoteUpdate.current = false;
       return;
     }
+
     window.dispatchEvent(
       new CustomEvent<PersistentListEventDetail>(UPDATE_EVENT, {
         detail: { key, items: normalized, sourceId: instanceId },
       })
     );
-  }, [items, isHydrated, key, instanceId]);
+  }, [items, key, instanceId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     function applyRemoteItems(nextItems: ListItem[]) {
       isApplyingRemoteUpdate.current = true;
       setItems(nextItems.map(normalizeItem));
-      setIsHydrated(true);
     }
 
     function handleStorage(event: StorageEvent) {
       if (event.key !== key || !event.newValue) return;
       try {
-        const parsed: ListItem[] = JSON.parse(event.newValue);
+        const parsed = JSON.parse(event.newValue) as ListItem[];
         applyRemoteItems(parsed);
       } catch {
         // Ignore parse errors

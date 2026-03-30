@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 
 export function FullscreenToggle() {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isSupported, setIsSupported] = useState(false);
+  const isSupported = typeof document !== "undefined" && "fullscreenEnabled" in document;
 
   useEffect(() => {
-    setIsSupported(typeof document !== "undefined" && "fullscreenEnabled" in document);
+    if (!isSupported) return;
 
     const handleFullscreenChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
@@ -19,7 +19,7 @@ export function FullscreenToggle() {
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
-  }, []);
+  }, [isSupported]);
 
   if (!isSupported) {
     return null;

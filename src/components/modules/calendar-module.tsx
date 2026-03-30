@@ -201,13 +201,6 @@ function exclusiveDateToInput(value?: string | null) {
   return format(inclusive, "yyyy-MM-dd");
 }
 
-function inclusiveDateToExclusive(value: string) {
-  const date = dateStringToDate(value);
-  if (!date) throw new Error(`Invalid date: ${value}`);
-  const exclusive = addDays(date, 1);
-  return format(exclusive, "yyyy-MM-dd");
-}
-
 function getWeatherForDate(map: Map<string, WeatherDay>, date: Date) {
   return map.get(format(date, "yyyy-MM-dd"));
 }
@@ -1298,7 +1291,6 @@ function EventList({
         range={range}
         weatherByDate={weatherByDate}
         onEdit={onEdit}
-        editingId={editingId}
         onCreateFromDate={onCreateFromDate}
       />
     );
@@ -1442,14 +1434,12 @@ function CalendarWeekGrid({
   range,
   weatherByDate,
   onEdit,
-  editingId,
   onCreateFromDate,
 }: {
   events: CalendarEvent[];
   range: { start: Date; end: Date };
   weatherByDate: Map<string, WeatherDay>;
   onEdit: (event: CalendarEvent) => void;
-  editingId: string | null;
   onCreateFromDate?: (date: Date) => void;
 }) {
   const days = eachDayOfInterval({ start: range.start, end: range.end });

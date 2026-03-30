@@ -110,10 +110,12 @@ export function useOnScreenKeyboardController() {
   const [layout, setLayout] = useState<Layout>("letters");
   const [shifted, setShifted] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
+  const [target, setTarget] = useState<EditableTarget | null>(null);
   const targetRef = useRef<EditableTarget | null>(null);
 
   const close = useCallback(() => {
     setIsOpen(false);
+    setTarget(null);
     targetRef.current = null;
   }, []);
 
@@ -164,6 +166,7 @@ export function useOnScreenKeyboardController() {
         return;
       }
       targetRef.current = candidate;
+      setTarget(candidate);
       setIsOpen(true);
     }
 
@@ -172,10 +175,12 @@ export function useOnScreenKeyboardController() {
         const active = document.activeElement as HTMLElement | null;
         if (active && isEditableTarget(active)) {
           targetRef.current = active;
+          setTarget(active);
           setIsOpen(true);
           return;
         }
         targetRef.current = null;
+        setTarget(null);
         setIsOpen(false);
       }, 10);
     }
@@ -214,7 +219,7 @@ export function useOnScreenKeyboardController() {
     layout,
     shifted,
     capsLock,
-    target: targetRef.current,
+    target,
     applyText,
     handleBackspace,
     handleEnter,
