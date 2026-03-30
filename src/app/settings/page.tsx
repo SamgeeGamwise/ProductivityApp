@@ -13,8 +13,14 @@ export default function SettingsPage() {
   const [gitMessage, setGitMessage] = useState<string | null>(null);
   const { entries, clearEntries } = useErrorLog();
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const gitPullEnabled = false;
 
   const handleGitPull = async () => {
+    if (!gitPullEnabled) {
+      setGitStatus("error");
+      setGitMessage("git pull is disabled for static deployments. Publish updates through GitHub Actions instead.");
+      return;
+    }
     setGitStatus("running");
     setGitMessage(null);
     try {
@@ -90,13 +96,13 @@ export default function SettingsPage() {
           <div className="rounded-[1.9rem] border border-[var(--surface-border)] bg-[var(--surface)] p-6 shadow-[0_18px_50px_rgba(2,8,20,0.24)] backdrop-blur-xl">
             <h2 className="text-lg font-semibold text-white">Maintenance</h2>
             <p className="mt-1 text-sm text-slate-300">
-              Force the dashboard to pull the latest code via Git if the deployment gets stale.
+              Static deployments cannot run server-side git commands. Publish updates through your GitHub Actions deploy pipeline.
             </p>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
               <button
                 type="button"
                 onClick={handleGitPull}
-                disabled={gitStatus === "running"}
+                disabled={!gitPullEnabled || gitStatus === "running"}
                 className="rounded-full border border-white/15 bg-[rgba(11,24,42,0.68)] px-4 py-2 text-sm font-semibold uppercase tracking-[0.18em] text-white transition hover:border-white/35 hover:bg-[rgba(17,34,58,0.8)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {gitStatus === "running" ? "Pulling..." : "Run git pull"}

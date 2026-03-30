@@ -1,38 +1,23 @@
 import { NextResponse } from "next/server";
-import { promisify } from "util";
-import { exec } from "child_process";
 
-export const runtime = "nodejs";
+export const dynamic = "force-static";
 
-const execAsync = promisify(exec);
-const REPO_ROOT = process.cwd();
-type ExecError = Error & { stderr?: string; stdout?: string };
+const DISABLED_MESSAGE =
+  "git pull is not available in static deployments. Use your Git provider or hosting pipeline to publish updates.";
 
 export async function POST() {
-  try {
-    const { stdout, stderr } = await execAsync("git pull", { cwd: REPO_ROOT });
-    return NextResponse.json({
-      success: true,
-      stdout: stdout.trim(),
-      stderr: stderr.trim(),
-    });
-  } catch (error) {
-    const execError = error as ExecError;
-    const message = error instanceof Error ? error.message : "Unknown error";
-    const stderr = typeof execError.stderr === "string" ? execError.stderr : "";
-    const stdout = typeof execError.stdout === "string" ? execError.stdout : "";
-    return NextResponse.json(
-      {
-        success: false,
-        error: message,
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(
+    {
+      success: false,
+      error: DISABLED_MESSAGE,
+    },
+    { status: 405 }
+  );
 }
 
-export function GET() {
-  return NextResponse.json({ error: "Use POST" }, { status: 405 });
+export async function GET() {
+  return NextResponse.json({
+    success: false,
+    error: DISABLED_MESSAGE,
+  });
 }
