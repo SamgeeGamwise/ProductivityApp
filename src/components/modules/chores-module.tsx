@@ -46,7 +46,7 @@ export function ChoresModule() {
   return (
     <ModuleCard title="Chores" accent="from-orange-500/30 to-orange-500/10" contentClassName="gap-4 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-white/60">Recurring tasks</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-white/85">Recurring tasks</p>
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
@@ -59,7 +59,7 @@ export function ChoresModule() {
       <div className="flex min-h-0 flex-1">
         <ul className="flex-1 space-y-2 overflow-auto pr-1 max-h-80">
           {sorted.map((item) => (
-            <li key={item.id} className="rounded-2xl border border-white/10 bg-slate-900/70 p-3">
+            <li key={item.id} className="rounded-2xl border border-white/20 bg-slate-950/90 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <input
@@ -69,27 +69,27 @@ export function ChoresModule() {
                     className="mt-1 h-4 w-4 rounded border border-orange-300/70 bg-transparent text-orange-300 focus:ring-orange-300"
                   />
                   <div>
-                    <p className={clsx("font-semibold", item.done ? "text-slate-400 line-through" : "text-white")}>{item.label}</p>
+                    <p className={clsx("font-semibold", item.done ? "text-slate-200 line-through" : "text-white")}>{item.label}</p>
                     {item.note && <p className="text-[0.65rem] text-slate-300">{item.note}</p>}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => remove(item.id)}
-                  className="text-xs text-slate-400 transition hover:text-red-300"
+                  className="text-xs text-slate-200 transition hover:text-red-300"
                 >
                   Remove
                 </button>
               </div>
             </li>
           ))}
-          {!sorted.length && <p className="text-center text-xs text-slate-500">No chores</p>}
+          {!sorted.length && <p className="text-center text-xs text-slate-300">No chores</p>}
         </ul>
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-950/90 p-5 text-sm text-white shadow-2xl shadow-black/60">
+          <div className="w-full max-w-lg rounded-3xl border border-white/20 bg-slate-950/90 p-5 text-sm text-white shadow-2xl shadow-black/60">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-orange-200/80">Chores</p>
@@ -105,7 +105,7 @@ export function ChoresModule() {
             </div>
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wide text-slate-400">Chore</label>
+                <label className="text-xs uppercase tracking-wide text-slate-200">Chore</label>
                 <input
                   className="w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-orange-300"
                   value={chore.label}
@@ -114,7 +114,7 @@ export function ChoresModule() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wide text-slate-400">Details</label>
+                <label className="text-xs uppercase tracking-wide text-slate-200">Details</label>
                 <textarea
                   className="h-16 w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-orange-300"
                   value={chore.details}
@@ -122,7 +122,7 @@ export function ChoresModule() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-wide text-slate-400">Frequency</label>
+                <label className="text-xs uppercase tracking-wide text-slate-200">Frequency</label>
                 <select
                   className="w-full rounded-2xl border border-white/15 bg-slate-900/60 px-3 py-2 text-white outline-none focus:border-orange-300"
                   value={frequency}

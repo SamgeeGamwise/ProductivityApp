@@ -25,7 +25,7 @@ export function ModuleCard({
         className
       )}
     >
-      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent" />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold tracking-[0.01em] text-white">{title}</h2>
@@ -35,7 +35,7 @@ export function ModuleCard({
       <div className={clsx("flex flex-1 rounded-[1.35rem] bg-gradient-to-br", accent)}>
         <div
           className={clsx(
-            "flex h-full min-h-0 w-full flex-col rounded-[1.35rem] border border-white/6 bg-[linear-gradient(180deg,rgba(7,14,26,0.78),rgba(7,15,29,0.92))] p-4",
+            "flex h-full min-h-0 w-full flex-col rounded-[1.35rem] border border-white/12 bg-[linear-gradient(180deg,rgba(3,6,14,0.94),rgba(2,4,10,0.98))] p-4",
             contentClassName
           )}
         >

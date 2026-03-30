@@ -26,50 +26,50 @@ export function WeatherModule() {
   return (
     <section className="flex h-full w-full min-h-0 flex-col rounded-[1.75rem] border border-[var(--surface-border)] bg-[var(--surface)] p-5 text-sm text-[#dce5ff] shadow-[0_18px_50px_rgba(2,8,20,0.32)] backdrop-blur-xl lg:p-6">
       {todayForecast && (
-        <div className="rounded-[1.4rem] border border-[#2d405f] bg-[linear-gradient(180deg,rgba(12,24,44,0.86),rgba(10,20,37,0.96))] p-4 lg:p-5">
+        <div className="rounded-[1.4rem] border border-[#3a5278] bg-[linear-gradient(180deg,rgba(5,10,22,0.96),rgba(3,6,16,0.99))] p-4 lg:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-[#7d8fca]">Weather</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-[#aabae0]">Weather</p>
               <p className="text-2xl font-semibold text-white lg:text-3xl">Today</p>
-              <p className="mt-2 text-sm text-[#b0c0ff] lg:text-base">
+              <p className="mt-2 text-sm text-[#ccd8ff] lg:text-base">
                 {current?.description ?? describeDay(todayForecast)}
               </p>
             </div>
             <div className="text-left text-white sm:text-right">
-              <p className="text-[0.6rem] uppercase tracking-[0.3em] text-[#7d8fca]">Current</p>
+              <p className="text-[0.6rem] uppercase tracking-[0.3em] text-[#aabae0]">Current</p>
               {current ? (
                 <p className="text-4xl font-semibold lg:text-5xl">{current.temperature}{"\u00B0F"}</p>
               ) : (
-                <p className="text-sm text-[#94a8dd]">No current data</p>
+                <p className="text-sm text-[#b8ccee]">No current data</p>
               )}
-              <p className="mt-2 text-[0.65rem] uppercase tracking-[0.3em] text-[#8ea2dc]">
+              <p className="mt-2 text-[0.65rem] uppercase tracking-[0.3em] text-[#b8ccee]">
                 Last updated {lastUpdatedLabel ? lastUpdatedLabel : "-"}
               </p>
             </div>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-[#263856] bg-[rgba(15,29,52,0.88)] p-3">
-              <p className="text-[0.65rem] uppercase tracking-[0.25em] text-[#8ea2dc]">Current Temp</p>
+            <div className="rounded-xl border border-[#344a6e] bg-[rgba(5,10,22,0.97)] p-3">
+              <p className="text-[0.65rem] uppercase tracking-[0.25em] text-[#b8ccee]">Current Temp</p>
               <p className="mt-2 text-xl font-semibold text-white">
                 {current ? `${current.temperature}\u00B0` : "N/A"}
               </p>
             </div>
-            <div className="rounded-xl border border-[#263856] bg-[rgba(15,29,52,0.88)] p-3">
-              <p className="text-[0.65rem] uppercase tracking-[0.25em] text-[#8ea2dc]">High / Low</p>
+            <div className="rounded-xl border border-[#344a6e] bg-[rgba(5,10,22,0.97)] p-3">
+              <p className="text-[0.65rem] uppercase tracking-[0.25em] text-[#b8ccee]">High / Low</p>
               <p className="mt-2 text-xl font-semibold text-white">
                 {todayForecast.max}{"\u00B0"} / {todayForecast.min}{"\u00B0"}
               </p>
             </div>
-            <div className="rounded-xl border border-[#263856] bg-[rgba(15,29,52,0.88)] p-3">
-              <p className="text-[0.65rem] uppercase tracking-[0.25em] text-[#8ea2dc]">
+            <div className="rounded-xl border border-[#344a6e] bg-[rgba(5,10,22,0.97)] p-3">
+              <p className="text-[0.65rem] uppercase tracking-[0.25em] text-[#b8ccee]">
                 {todayPrecipitationLabel} Chance
               </p>
               <p className="mt-2 text-xl font-semibold text-white">
                 {typeof todayForecast.precipitation === "number" ? `${todayForecast.precipitation}%` : "N/A"}
               </p>
             </div>
-            <div className="rounded-xl border border-[#263856] bg-[rgba(15,29,52,0.88)] p-3">
-              <p className="text-[0.65rem] uppercase tracking-[0.25em] text-[#8ea2dc]">What To Wear</p>
+            <div className="rounded-xl border border-[#344a6e] bg-[rgba(5,10,22,0.97)] p-3">
+              <p className="text-[0.65rem] uppercase tracking-[0.25em] text-[#b8ccee]">What To Wear</p>
               <p className="mt-2 text-xl font-semibold text-white">
                 {getOutfitSuggestion(current?.temperature ?? todayForecast.max, todayForecast)}
               </p>
@@ -89,17 +89,17 @@ export function WeatherModule() {
       )}
 
       {futureDays.length > 0 && (
-        <div className="mt-4 flex gap-3 overflow-x-auto pb-1 text-xs text-[#cbd7ff]">
+        <div className="mt-4 flex gap-3 overflow-x-auto pb-1 text-xs text-[#dde6ff]">
           {futureDays.map((day) => (
             <div
               key={day.date}
-              className="flex min-h-[7.5rem] min-w-[8.25rem] flex-1 flex-col justify-center rounded-xl border border-[#263856] bg-[rgba(12,24,44,0.78)] p-4 text-center lg:min-h-[8.5rem]"
+              className="flex min-h-[7.5rem] min-w-[8.25rem] flex-1 flex-col justify-center rounded-xl border border-[#344a6e] bg-[rgba(4,8,18,0.96)] p-4 text-center lg:min-h-[8.5rem]"
             >
-              <p className="text-[0.75rem] uppercase tracking-wide text-[#7d8fca] lg:text-xs">
+              <p className="text-[0.75rem] uppercase tracking-wide text-[#aabae0] lg:text-xs">
                 {format(new Date(`${day.date}T12:00:00`), "EEE")}
               </p>
               <p className="mt-2 text-2xl font-semibold text-white lg:text-3xl">{day.max}{"\u00B0F"}</p>
-              <p className="text-xs text-[#9fb4ff] lg:text-sm">Low {day.min}{"\u00B0F"}</p>
+              <p className="text-xs text-[#baccff] lg:text-sm">Low {day.min}{"\u00B0F"}</p>
               {typeof day.precipitation === "number" && day.precipitation > 0 && (
                 <p className="mt-2 text-xs text-sky-300 lg:text-sm">
                   {getPrecipitationChanceLabel(day)} {day.precipitation}%

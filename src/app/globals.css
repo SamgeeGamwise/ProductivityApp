@@ -3,10 +3,10 @@
 :root {
   font-size: 16px;
   --ui-scale: 1;
-  --background: #07111f;
-  --foreground: #f5f7fb;
-  --surface: rgba(9, 18, 34, 0.78);
-  --surface-border: rgba(167, 184, 221, 0.16);
+  --background: #010306;
+  --foreground: #ffffff;
+  --surface: rgba(4, 8, 18, 0.94);
+  --surface-border: rgba(167, 184, 221, 0.30);
 }
 
 @theme inline {
@@ -30,10 +30,10 @@ body {
   font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   overflow: hidden;
   background-image:
-    radial-gradient(circle at 15% 20%, rgba(93, 173, 226, 0.16), transparent 28%),
-    radial-gradient(circle at 82% 16%, rgba(166, 124, 82, 0.14), transparent 24%),
-    radial-gradient(circle at 50% 100%, rgba(72, 119, 168, 0.22), transparent 34%),
-    linear-gradient(180deg, #091322 0%, #07111f 48%, #050c18 100%);
+    radial-gradient(circle at 15% 20%, rgba(60, 120, 200, 0.10), transparent 28%),
+    radial-gradient(circle at 82% 16%, rgba(120, 80, 40, 0.08), transparent 24%),
+    radial-gradient(circle at 50% 100%, rgba(40, 80, 140, 0.12), transparent 34%),
+    linear-gradient(180deg, #020508 0%, #010306 48%, #010204 100%);
   background-attachment: fixed;
 }
 
@@ -43,10 +43,10 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.02)),
-    radial-gradient(circle at top, rgba(255, 255, 255, 0.035), transparent 55%);
+    linear-gradient(rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.01)),
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.015), transparent 55%);
   mix-blend-mode: screen;
-  opacity: 0.55;
+  opacity: 0.4;
 }
 
 ::selection {

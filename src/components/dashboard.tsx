@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CalendarModule } from "./modules/calendar-module";
-import { TodoModule } from "./modules/todo-module";
+import { QuoteModule } from "./modules/quote-module";
 import { ChoresModule } from "./modules/chores-module";
 import { WeatherModule } from "./modules/weather-module";
 import { FullscreenToggle } from "./fullscreen-toggle";
@@ -29,16 +29,16 @@ export function Dashboard() {
           ) : (
             <div className="grid h-full min-h-0 w-full gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,2fr)]">
               <div className="flex min-h-0 w-full flex-col gap-4">
-                <div className="flex min-h-0 w-full flex-[5]">
+                <div className="flex min-h-0 w-full flex-5">
                   <WeatherModule />
                 </div>
-                <div className="flex min-h-0 w-full flex-[6]">
+                <div className="flex min-h-0 w-full flex-6">
                   <CalendarModule onToggleExpand={() => setCalendarExpanded(true)} />
                 </div>
               </div>
               <div className="flex min-h-0 w-full flex-col gap-4">
                 <div className="flex min-h-0 w-full flex-1">
-                  <TodoModule />
+                  <QuoteModule />
                 </div>
                 <div className="flex min-h-0 w-full flex-1">
                   <ChoresModule />

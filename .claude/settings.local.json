@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(css|config|js|json\\)$\")",
+      "Bash(ls -la /c/Development/Code/ProductivityApp/*.config.* /c/Development/Code/ProductivityApp/tailwind.* /c/Development/Code/ProductivityApp/postcss.*)"
+    ]
+  }
+}
