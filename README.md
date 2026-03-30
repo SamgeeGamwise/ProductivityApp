@@ -21,7 +21,7 @@ Skylight-inspired productivity dashboard built with Next.js + Tailwind. It pairs
    ```bash
    cp .env.example .env.local
    ```
-3. Populate the Google credentials inside `.env.local` (details below). If you skip this, the calendar module will render but remain in read-only demo mode.
+3. Populate the Google credentials inside `.env.local` (details below) if you want live calendar sync. If you skip this, the site still works publicly, but the calendar module stays in read-only mode with no event editing.
 4. Run the dev server:
    ```bash
    npm run dev
@@ -52,5 +52,31 @@ Skylight-inspired productivity dashboard built with Next.js + Tailwind. It pairs
 npm run build
 npm run start
 ```
+
+## Free Deployment
+
+### Recommended pipeline: GitHub + Vercel
+- Best fit for this repo because it is a Next.js app with API routes.
+- Free tier is enough for a personal/public dashboard.
+- Native GitHub integration gives you automatic production deploys on pushes to `main` and preview deploys for pull requests.
+- No Google Calendar secrets are required for a public read-only deployment.
+
+### Suggested setup
+1. Push this repo to GitHub.
+2. Import the repo into Vercel.
+3. Leave the Google Calendar env vars unset if you want a public read-only site.
+4. Add only the weather env vars if you want to customize location:
+   - `WEATHER_LATITUDE`
+   - `WEATHER_LONGITUDE`
+   - `WEATHER_USER_AGENT`
+5. Set your production branch to `main`.
+6. Optionally attach a custom domain from Vercel later.
+
+### Why not GitHub Pages?
+- GitHub Pages is free, but this app is not a clean fit because it uses Next.js server features and API routes.
+- You would need to rework the app into a static export first.
+
+### Why not Netlify or Cloudflare Pages?
+- Both can work, but Vercel is the lowest-friction option for a standard Next.js deployment and has the tightest GitHub integration.
 
 That’s it! Mount the app via Chromium in kiosk mode on your Raspberry Pi, and you’ll have an always-on household productivity board.

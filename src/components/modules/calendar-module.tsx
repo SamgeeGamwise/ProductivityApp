@@ -84,6 +84,41 @@ function createDefaultEvent(): NewEventState {
   };
 }
 
+function createPlaceholderCalendarEvents(range: { start: Date; end: Date }): CalendarEvent[] {
+  const startDay = startOfDay(range.start);
+  const secondDay = startOfDay(addDays(startDay, 1));
+  const thirdDay = startOfDay(addDays(startDay, 2));
+
+  const candidates = [
+    {
+      id: "placeholder-calendar-sync",
+      summary: "Calendar preview placeholder",
+      description: "Your connected calendar events would appear in this section.",
+      start: { dateTime: new Date(startDay.getTime() + 9 * 60 * 60 * 1000).toISOString() },
+      end: { dateTime: new Date(startDay.getTime() + 10 * 60 * 60 * 1000).toISOString() },
+    },
+    {
+      id: "placeholder-google-events",
+      summary: "Example Google Calendar event",
+      description: "This is a pretend event showing where synced Google Calendar items would display.",
+      start: { dateTime: new Date(secondDay.getTime() + 13 * 60 * 60 * 1000).toISOString() },
+      end: { dateTime: new Date(secondDay.getTime() + 14 * 60 * 60 * 1000).toISOString() },
+    },
+    {
+      id: "placeholder-all-day",
+      summary: "All-day calendar placeholder",
+      description: "All-day events from your connected calendar would also appear here.",
+      start: { date: format(thirdDay, "yyyy-MM-dd") },
+      end: { date: format(addDays(thirdDay, 1), "yyyy-MM-dd") },
+    },
+  ];
+
+  return candidates.filter((event) => {
+    const eventStart = getEventDate(event.start);
+    return eventStart && eventStart >= range.start && eventStart <= range.end;
+  });
+}
+
 function parseRecurrenceRule(rule?: string | null): { frequency: RecurrenceFrequency; interval: number } {
   if (!rule) return { frequency: "none", interval: 1 };
   const freqMatch = rule.match(/FREQ=([A-Z]+)/);
@@ -273,6 +308,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   const isExpandedMonthView = expanded && viewMode === "month";
   const isExpandedWeekView = expanded && viewMode === "week";
   const isDashboardDayView = !expanded;
+  const calendarEditingEnabled = !needsSetup;
   const range = isExpandedMonthView ? monthRange : isExpandedWeekView ? weekRange : dayRange;
   const dashboardLabel = `${format(dayRange.start, "EEE, MMM d")} – ${format(dayRange.end, "EEE, MMM d")}`;
   const displayLabel = isExpandedMonthView
@@ -374,6 +410,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   };
 
   const openComposerForDate = useCallback((targetDate: Date) => {
+    if (!calendarEditingEnabled) return;
     const start = new Date(targetDate);
     start.setHours(DEFAULT_EVENT_START_HOUR, 0, 0, 0);
     const end = new Date(start.getTime() + AUTO_EVENT_DURATION_MS);
@@ -387,7 +424,16 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
       allDay: false,
     });
     setIsComposerModalOpen(true);
-  }, []);
+  }, [calendarEditingEnabled]);
+
+  useEffect(() => {
+    if (!calendarEditingEnabled) {
+      setIsComposerModalOpen(false);
+      setDeleteTarget(null);
+      setEditingId(null);
+      setActiveEditEvent(null);
+    }
+  }, [calendarEditingEnabled]);
 
   const closeComposer = () => {
     setIsComposerModalOpen(false);
@@ -396,6 +442,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!calendarEditingEnabled) return;
     try {
       const method = editingId ? "PUT" : "POST";
       const recurrencePayload =
@@ -452,6 +499,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   };
 
   const handleEdit = (event: CalendarEvent) => {
+    if (!calendarEditingEnabled) return;
     if (!event.id) return;
     const targetId = event.recurringEventId ?? event.id;
     openEditComposer(event, targetId);
@@ -466,6 +514,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
 
   const requestDelete = (event: CalendarEvent) => {
+    if (!calendarEditingEnabled) return;
     setDeleteTarget(event);
     setDeleteScope("single");
     setDeleteError(null);
@@ -487,7 +536,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   }, []);
 
   const confirmDelete = async () => {
-    if (!deleteTarget?.id) return;
+    if (!calendarEditingEnabled || !deleteTarget?.id) return;
     const body: Record<string, unknown> = { scope: deleteScope };
     if (deleteScope === "single") {
       body.id = deleteTarget.id;
@@ -533,7 +582,10 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
   };
 
   const effectiveViewMode = expanded ? viewMode : "week";
-  const visibleEvents = events;
+  const visibleEvents = useMemo(
+    () => (needsSetup ? createPlaceholderCalendarEvents(range) : events),
+    [events, needsSetup, range]
+  );
   const isEditing = Boolean(editingId);
 
   const handlePrev = () => {
@@ -697,10 +749,12 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
             <button
               type="button"
               onClick={() => {
+                if (!calendarEditingEnabled) return;
                 resetForm();
                 setIsComposerModalOpen(true);
               }}
-              className="rounded-full border border-[#3c5aa8] bg-[#0f1a33] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#f0f5ff] transition hover:border-[#6ba1ff] hover:bg-[#182442]"
+              className="rounded-full border border-[#3c5aa8] bg-[#0f1a33] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#f0f5ff] transition hover:border-[#6ba1ff] hover:bg-[#182442] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!calendarEditingEnabled}
             >
               <span className="inline-flex items-center gap-2">
                 <span
@@ -777,12 +831,6 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
             ? `Last updated ${lastUpdatedLabel}`
             : "Waiting for first sync…"}
       </div>
-
-      {needsSetup && (
-        <p className="mb-4 rounded-2xl border border-[#f4c95d]/40 bg-[#2b1d05] p-3 text-xs text-[#ffe9b0]">
-          Calendar access is not configured yet. Add your Google service account secrets to <code>.env.local</code> (see README) to enable sync.
-        </p>
-      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-100">
