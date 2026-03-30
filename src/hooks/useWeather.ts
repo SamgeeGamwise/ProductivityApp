@@ -13,11 +13,24 @@ export type WeatherDay = {
   code?: number | null;
   sunrise?: string | null;
   sunset?: string | null;
+  fullDay?: WeatherFullDay | null;
 };
 
 export type WeatherCurrent = {
   temperature: number;
   description: string;
+  code: number | null;
+};
+
+export type WeatherFullDay = {
+  startTime: string | null;
+  endTime: string | null;
+  startTemperature: number | null;
+  middayTemperature: number | null;
+  minTemperature: number | null;
+  maxTemperature: number | null;
+  precipitation: number | null;
+  windSpeed: number | null;
   code: number | null;
 };
 
@@ -34,9 +47,17 @@ type WeatherApiResponse = {
     sunrise?: string[];
     sunset?: string[];
   };
+  hourly?: {
+    time?: string[];
+    temperature_2m?: number[];
+    precipitation_probability?: number[];
+    wind_speed_10m?: number[];
+    weather_code?: number[];
+  };
   current_weather?: {
     temperature?: number;
     weathercode?: number;
+    description?: string;
   };
   error?: string;
 };
@@ -159,6 +180,13 @@ function parseWeather(payload: WeatherApiResponse | null | undefined): ParsedWea
   const weatherCodes: number[] = payload?.daily?.weather_code ?? [];
   const sunrises: string[] = payload?.daily?.sunrise ?? [];
   const sunsets: string[] = payload?.daily?.sunset ?? [];
+  const fullDayByDate = buildFullDayForecastMap(
+    payload?.hourly?.time ?? [],
+    payload?.hourly?.temperature_2m ?? [],
+    payload?.hourly?.precipitation_probability ?? [],
+    payload?.hourly?.wind_speed_10m ?? [],
+    payload?.hourly?.weather_code ?? []
+  );
   const daily = times.map((time, index) => ({
     date: time,
     max: toFahrenheit(maxes[index]),
@@ -170,6 +198,7 @@ function parseWeather(payload: WeatherApiResponse | null | undefined): ParsedWea
     code: typeof weatherCodes[index] === "number" ? weatherCodes[index] : null,
     sunrise: sunrises[index] ?? null,
     sunset: sunsets[index] ?? null,
+    fullDay: fullDayByDate.get(time) ?? null,
   }));
 
   const currentPayload = payload?.current_weather;
@@ -177,7 +206,7 @@ function parseWeather(payload: WeatherApiResponse | null | undefined): ParsedWea
     ? {
         temperature: toFahrenheit(currentPayload.temperature),
         code: typeof currentPayload.weathercode === "number" ? currentPayload.weathercode : null,
-        description: describeWeatherCode(currentPayload.weathercode),
+        description: currentPayload.description || describeWeatherCode(currentPayload.weathercode),
       }
     : null;
 
@@ -189,9 +218,134 @@ function toFahrenheit(value?: number): number {
   return Math.round((value * 9) / 5 + 32);
 }
 
+function toNullableFahrenheit(value?: number) {
+  if (typeof value !== "number" || Number.isNaN(value)) return null;
+  return Math.round((value * 9) / 5 + 32);
+}
+
 function toRoundedNumber(value?: number) {
   if (typeof value !== "number" || Number.isNaN(value)) return null;
   return Math.round(value * 10) / 10;
+}
+
+function toWholeNumber(value?: number) {
+  if (typeof value !== "number" || Number.isNaN(value)) return null;
+  return Math.round(value);
+}
+
+function toMph(value?: number) {
+  if (typeof value !== "number" || Number.isNaN(value)) return null;
+  return Math.round(value / 1.60934);
+}
+
+function buildFullDayForecastMap(
+  times: string[],
+  temperatures: number[],
+  precipitationChances: number[],
+  windSpeeds: number[],
+  weatherCodes: number[]
+) {
+  const fullDayByDate = new Map<string, WeatherFullDay>();
+  const groupedHours = new Map<
+    string,
+    Array<{
+      time: string;
+      hour: number;
+      temperature: number | null;
+      precipitation: number | null;
+      windSpeed: number | null;
+      code: number | null;
+    }>
+  >();
+
+  times.forEach((time, index) => {
+    const date = time.slice(0, 10);
+    const hour = getHourFromTimestamp(time);
+    if (hour === null) return;
+
+    const hours = groupedHours.get(date) ?? [];
+    hours.push({
+      time,
+      hour,
+      temperature: toNullableFahrenheit(temperatures[index]),
+      precipitation: toWholeNumber(precipitationChances[index]),
+      windSpeed: toMph(windSpeeds[index]),
+      code: typeof weatherCodes[index] === "number" ? weatherCodes[index] : null,
+    });
+    groupedHours.set(date, hours);
+  });
+
+  groupedHours.forEach((hours, date) => {
+    const sortedHours = [...hours].sort((left, right) => left.hour - right.hour);
+    const startEntry = [...sortedHours].sort(
+      (left, right) =>
+        getDayStartPriority(left.hour) - getDayStartPriority(right.hour)
+    )[0];
+    const middayEntry = [...sortedHours].sort(
+      (left, right) =>
+        getMiddayPriority(left.hour) - getMiddayPriority(right.hour)
+    )[0];
+    const temperaturesInRange = sortedHours
+      .map((entry) => entry.temperature)
+      .filter((value): value is number => typeof value === "number");
+    const precipitationInRange = sortedHours
+      .map((entry) => entry.precipitation)
+      .filter((value): value is number => typeof value === "number");
+    const windInRange = sortedHours
+      .map((entry) => entry.windSpeed)
+      .filter((value): value is number => typeof value === "number");
+    const codesInRange = sortedHours.map((entry) => entry.code);
+
+    fullDayByDate.set(date, {
+      startTime: startEntry?.time ?? null,
+      endTime: sortedHours.at(-1)?.time ?? null,
+      startTemperature: startEntry?.temperature ?? null,
+      middayTemperature: middayEntry?.temperature ?? null,
+      minTemperature: temperaturesInRange.length ? Math.min(...temperaturesInRange) : null,
+      maxTemperature: temperaturesInRange.length ? Math.max(...temperaturesInRange) : null,
+      precipitation: precipitationInRange.length ? Math.max(...precipitationInRange) : null,
+      windSpeed: windInRange.length ? Math.max(...windInRange) : null,
+      code: pickFullDayCode(codesInRange),
+    });
+  });
+
+  return fullDayByDate;
+}
+
+function getHourFromTimestamp(value: string) {
+  const parsed = Number(value.slice(11, 13));
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+function getDayStartPriority(hour: number) {
+  if (hour === 8) return 0;
+  if (hour === 7) return 1;
+  if (hour === 9) return 2;
+  if (hour === 6) return 3;
+  return 10 + hour;
+}
+
+function getMiddayPriority(hour: number) {
+  if (hour === 13) return 0;
+  if (hour === 12) return 1;
+  if (hour === 14) return 2;
+  if (hour === 15) return 3;
+  if (hour === 11) return 4;
+  return 10 + Math.abs(hour - 13);
+}
+
+function pickFullDayCode(codes: Array<number | null>) {
+  const validCodes = codes.filter((value): value is number => typeof value === "number");
+  for (const code of validCodes) {
+    if ([95, 96, 99].includes(code)) return code;
+  }
+  for (const code of validCodes) {
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return code;
+  }
+  for (const code of validCodes) {
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return code;
+  }
+  return validCodes[0] ?? null;
 }
 
 function describeWeatherCode(code: unknown) {
