@@ -75,13 +75,13 @@ export function useWeather(days = 7) {
 
   useEffect(() => {
     let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let intervalId: number | null = null;
+    let retryTimeoutId: number | null = null;
     let retryAttempt = 0;
 
     const clearRetryTimeout = () => {
       if (retryTimeoutId) {
-        clearTimeout(retryTimeoutId);
+        window.clearTimeout(retryTimeoutId);
         retryTimeoutId = null;
       }
     };
@@ -91,7 +91,7 @@ export function useWeather(days = 7) {
       const retryDelay =
         WEATHER_RETRY_DELAYS_MS[Math.min(retryAttempt, WEATHER_RETRY_DELAYS_MS.length - 1)];
       retryAttempt += 1;
-      retryTimeoutId = setTimeout(() => {
+      retryTimeoutId = window.setTimeout(() => {
         retryTimeoutId = null;
         void load();
       }, retryDelay);
@@ -141,7 +141,7 @@ export function useWeather(days = 7) {
     };
 
     void load();
-    intervalId = setInterval(() => {
+    intervalId = window.setInterval(() => {
       retryAttempt = 0;
       void load();
     }, WEATHER_REFRESH_INTERVAL_MS);
@@ -151,7 +151,7 @@ export function useWeather(days = 7) {
       cancelled = true;
       clearRetryTimeout();
       if (intervalId) {
-        clearInterval(intervalId);
+        window.clearInterval(intervalId);
       }
       window.removeEventListener("online", handleOnline);
     };

@@ -345,7 +345,7 @@ export function CalendarModule({ expanded = false, onToggleExpand }: CalendarMod
 
   useEffect(() => {
     let cancelled = false;
-    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let retryTimeoutId: number | null = null;
     let retryAttempt = 0;
 
     const clearRetryTimeout = () => {

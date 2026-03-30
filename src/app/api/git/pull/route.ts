@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { promisify } from "util";
 import { exec } from "child_process";
 
+export const runtime = "nodejs";
+
 const execAsync = promisify(exec);
 const REPO_ROOT = process.cwd();
 

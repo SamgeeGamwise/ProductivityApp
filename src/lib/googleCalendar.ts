@@ -27,7 +27,7 @@ const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
 const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
 const scopes = ["https://www.googleapis.com/auth/calendar"];
-let authClient: ReturnType<typeof google.auth.JWT> | null = null;
+let authClient: InstanceType<typeof google.auth.JWT> | null = null;
 
 function getAuthClient() {
   if (!calendarIsConfigured()) {

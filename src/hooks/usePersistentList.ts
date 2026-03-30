@@ -24,8 +24,8 @@ type PersistentListEventDetail = {
   sourceId: string;
 };
 
-export function usePersistentList(key: string, defaults: ListItem[] = []) {
-  const [items, setItems] = useState<ListItem[]>(defaults);
+export function usePersistentList(key: string, defaults: Array<Partial<ListItem>> = []) {
+  const [items, setItems] = useState<ListItem[]>(() => defaults.map(normalizeItem));
   const [isHydrated, setIsHydrated] = useState(false);
   const instanceId = useMemo(() => createId(), []);
   const isApplyingRemoteUpdate = useRef(false);
@@ -121,7 +121,7 @@ export function usePersistentList(key: string, defaults: ListItem[] = []) {
       remove(id: string) {
         setItems((prev) => prev.filter((item) => item.id !== id));
       },
-      reset(data: ListItem[]) {
+      reset(data: Array<Partial<ListItem>>) {
         setItems(data.map(normalizeItem));
       },
     }),

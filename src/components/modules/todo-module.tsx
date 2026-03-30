@@ -24,15 +24,9 @@ export function TodoModule() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const dueISO = task.dueDate
-      ? buildDueDate(task.dueDate, task.dueTime)
-      : undefined;
+    const dueISO = task.dueDate ? buildDueDate(task.dueDate, task.dueTime) : undefined;
     const hasTime = Boolean(task.dueTime);
-    add(
-      task.title,
-      task.details || undefined,
-      dueISO ? { dueDate: dueISO, hasTime } : undefined
-    );
+    add(task.title, task.details || undefined, dueISO ? { dueDate: dueISO, hasTime } : undefined);
     setTask({ title: "", details: "", dueDate: "", dueTime: "" });
     setIsModalOpen(false);
   };
@@ -69,42 +63,48 @@ export function TodoModule() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <ul className="flex-1 space-y-2 overflow-auto pr-1 text-sm max-h-80">
-          {filtered.map((item) => (
-            <li key={item.id} className="rounded-2xl border border-white/10 bg-slate-900/70 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
+        <ul className="max-h-80 flex-1 space-y-2 overflow-auto pr-1 text-sm">
+          {filtered.map((item) => {
+            const dueDate = getDueDate(item);
+
+            return (
+              <li key={item.id} className="rounded-2xl border border-white/10 bg-slate-900/70 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <button
+                      type="button"
+                      onClick={() => toggle(item.id)}
+                      className={clsx(
+                        "mt-1 h-5 w-5 rounded-full border transition",
+                        item.done ? "border-emerald-300 bg-emerald-300/40" : "border-white/30 hover:border-emerald-200"
+                      )}
+                      aria-label={`Mark ${item.label} as done`}
+                    >
+                      {item.done && <span className="block h-full w-full rounded-full bg-emerald-200" />}
+                    </button>
+                    <div>
+                      <p className={clsx("font-semibold", item.done ? "text-slate-400 line-through" : "text-white")}>
+                        {item.label}
+                      </p>
+                      {item.note && <p className="text-xs text-slate-400">{item.note}</p>}
+                      {dueDate && (
+                        <p className="mt-1 text-[0.65rem] uppercase tracking-wide text-emerald-200">
+                          Due {formatDueDate(dueDate)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => toggle(item.id)}
-                    className={clsx(
-                      "mt-1 h-5 w-5 rounded-full border transition",
-                      item.done ? "border-emerald-300 bg-emerald-300/40" : "border-white/30 hover:border-emerald-200"
-                    )}
-                    aria-label={`Mark ${item.label} as done`}
+                    onClick={() => remove(item.id)}
+                    className="text-xs text-slate-400 transition hover:text-red-300"
                   >
-                    {item.done && <span className="block h-full w-full rounded-full bg-emerald-200" />}
+                    Remove
                   </button>
-                  <div>
-                    <p className={clsx("font-semibold", item.done ? "text-slate-400 line-through" : "text-white")}>{item.label}</p>
-                    {item.note && <p className="text-xs text-slate-400">{item.note}</p>}
-                    {item.meta?.dueDate && (
-                      <p className="mt-1 text-[0.65rem] uppercase tracking-wide text-emerald-200">
-                        Due {formatDueDate(String(item.meta.dueDate))}
-                      </p>
-                    )}
-                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => remove(item.id)}
-                  className="text-xs text-slate-400 transition hover:text-red-300"
-                >
-                  Remove
-                </button>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
           {!filtered.length && <p className="text-center text-xs text-slate-500">No tasks</p>}
         </ul>
       </div>
@@ -191,6 +191,11 @@ function buildDueDate(date: string, time: string) {
   if (!date) return undefined;
   if (!time) return `${date}T00:00:00`;
   return `${date}T${time}`;
+}
+
+function getDueDate(item: ListItem) {
+  const meta = item.meta ?? {};
+  return typeof meta.dueDate === "string" ? meta.dueDate : null;
 }
 
 function formatDueDate(value: string) {
