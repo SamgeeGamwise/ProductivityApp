@@ -305,7 +305,7 @@ function toKilometersPerHour(value?: number | null) {
 }
 
 function normalizeObservationTemperature(
-  temperature?: NwsLatestObservationResponse["properties"] extends { temperature?: infer T } ? T : never
+  temperature?: { value?: number | null; unitCode?: string | null } | null
 ) {
   const value = temperature?.value;
   if (typeof value !== "number" || Number.isNaN(value)) return null;
