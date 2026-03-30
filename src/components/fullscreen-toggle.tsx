@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 
 export function FullscreenToggle() {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const isSupported = typeof document !== "undefined" && "fullscreenEnabled" in document;
+  const [isSupported, setIsSupported] = useState(false);
 
   useEffect(() => {
-    if (!isSupported) return;
+    const supported = typeof document !== "undefined" && "fullscreenEnabled" in document;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsSupported(supported);
+    if (!supported) return;
 
     const handleFullscreenChange = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
@@ -19,7 +22,7 @@ export function FullscreenToggle() {
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
-  }, [isSupported]);
+  }, []);
 
   if (!isSupported) {
     return null;

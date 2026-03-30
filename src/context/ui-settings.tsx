@@ -11,17 +11,17 @@ const UiSettingsContext = createContext<UiSettingsContextValue | undefined>(unde
 const STORAGE_KEY = "home-rhythm-ui-scale";
 const DEFAULT_SCALE = 1.1;
 
-function getStoredUiScale() {
-  if (typeof window === "undefined") return DEFAULT_SCALE;
-  const stored = Number(window.localStorage.getItem(STORAGE_KEY));
-  if (Number.isFinite(stored) && stored >= 0.9 && stored <= 1.4) {
-    return stored;
-  }
-  return DEFAULT_SCALE;
-}
-
 export function UiSettingsProvider({ children }: { children: React.ReactNode }) {
-  const [uiScale, setUiScale] = useState(getStoredUiScale);
+  const [uiScale, setUiScale] = useState(DEFAULT_SCALE);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = Number(window.localStorage.getItem(STORAGE_KEY));
+    if (Number.isFinite(stored) && stored >= 0.9 && stored <= 1.4) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUiScale(stored);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

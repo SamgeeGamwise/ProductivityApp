@@ -21,7 +21,12 @@ const MAX_ENTRIES = 200;
 const ErrorLogContext = createContext<ErrorLogContextValue | undefined>(undefined);
 
 export function ErrorLogProvider({ children }: { children: React.ReactNode }) {
-  const [entries, setEntries] = useState<ErrorLogEntry[]>(() => loadStoredEntries());
+  const [entries, setEntries] = useState<ErrorLogEntry[]>([]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEntries(loadStoredEntries());
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
